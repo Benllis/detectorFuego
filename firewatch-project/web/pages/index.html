@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FireWatch — Detección temprana de incendios forestales</title>
+  <meta name="description" content="Sistema de detección temprana de incendios forestales con visión por computador. Proyecto de título, Ingeniería Informática, Duoc UC.">
+  
+  <!-- Tipografías -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Estilos externos -->
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <div class="brand"><span class="brand-mark"></span>FireWatch</div>
+    <div class="nav-links">
+      <a href="#inicio">Inicio</a>
+      <a href="#funciona">Cómo funciona</a>
+      <a href="#resultados">Resultados</a>
+      <a href="#equipo">Equipo</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="inicio">
+  <div class="wrap hero-inner hero-grid">
+    <!-- Columna Izquierda: Texto e información -->
+    <div class="hero-text">
+      <div class="eyebrow"><span class="dot"></span>Proyecto de título · Ingeniería Informática</div>
+      <h1>Detección temprana de <em>incendios forestales</em> con visión por computador</h1>
+      <p>FireWatch observa una cámara en tiempo real y clasifica lo que ve en tres estados: normal, humo o fuego — corriendo directo en el navegador, sin instalar nada.</p>
+      
+      <div class="cta-row">
+        <a href="#funciona" class="btn btn-primary">Cómo funciona →</a>
+        <a href="#resultados" class="btn btn-ghost">Ver resultados</a>
+      </div>
+
+      <div class="status-strip mono">
+        <div class="status-cell on">
+          <div class="status-dot" style="background:var(--green); box-shadow:0 0 0 4px rgba(47,174,109,.15);"></div>
+          <div class="status-label">Normal</div>
+        </div>
+        <div class="status-cell">
+          <div class="status-dot" style="background:var(--ember);"></div>
+          <div class="status-label">Humo</div>
+        </div>
+        <div class="status-cell">
+          <div class="status-dot" style="background:var(--red);"></div>
+          <div class="status-label">Fuego</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Columna Derecha: Carrusel de Fotos -->
+    <div class="hero-carousel">
+      <div class="carousel-container">
+        <div class="carousel-track" id="carouselTrack">
+          <div class="carousel-slide"><img src="https://picsum.photos/800/500?random=1" alt="Detección 1"></div>
+          <div class="carousel-slide"><img src="https://picsum.photos/800/500?random=2" alt="Detección 2"></div>
+          <div class="carousel-slide"><img src="https://picsum.photos/800/500?random=3" alt="Detección 3"></div>
+        </div>
+        <!-- Botones de navegación -->
+        <button class="carousel-btn prev" id="prevBtn" aria-label="Anterior">❮</button>
+        <button class="carousel-btn next" id="nextBtn" aria-label="Siguiente">❯</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section id="funciona">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-eyebrow">Pipeline</div>
+      <h2>De la cámara a la alerta</h2>
+      <p>Cuatro pasos, todos corriendo en el dispositivo — la imagen nunca sale del navegador durante la detección.</p>
+    </div>
+    <div class="pipeline">
+      <div class="pstep">
+        <div class="pnum">01</div>
+        <div>
+          <h3>Captura</h3>
+          <p>La cámara del celular, PC o sistema de vigilancia entrega un frame de video cada ciertos milisegundos.</p>
+        </div>
+      </div>
+      <div class="pstep">
+        <div class="pnum">02</div>
+        <div>
+          <h3>Inferencia local</h3>
+          <p>Dos modelos — uno especializado en fuego, otro en humo — corren en paralelo, revisando si existe alguna aparición de fuego o humo.</p>
+        </div>
+      </div>
+      <div class="pstep">
+        <div class="pnum">03</div>
+        <div>
+          <h3>Clasificación combinada</h3>
+          <p>El resultado de ambos modelos se combina en un semáforo de tres niveles: verde (sin amenaza), amarillo (fuego o humo aislado), rojo (ambos presentes).</p>
+        </div>
+      </div>
+      <div class="pstep">
+        <div class="pnum">04</div>
+        <div>
+          <h3>Reporte</h3>
+          <p>Ante una alerta amarilla o roja, se genera un reporte con foto y ubicación, destinado a un panel de monitoreo con acceso restringido.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="resultados">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-eyebrow">Entrenamiento</div>
+      <h2>Resultados de validación</h2>
+      <p>Cada modelo se entrenó por fases, combinando datasets públicos de incendios reales con casos de falsos positivos (nubes, niebla, luces de ciudad) para reducir falsas alarmas.</p>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric-card">
+        <div class="m-label"><span class="m-swatch" style="background:var(--red);"></span>Modelo A — Fuego</div>
+        <div class="metric-row"><span class="k">Precisión</span><span class="v">0.80</span></div>
+        <div class="metric-row"><span class="k">Recall</span><span class="v">0.81</span></div>
+        <div class="metric-row"><span class="k">mAP@50</span><span class="v">0.89</span></div>
+      </div>
+      <div class="metric-card">
+        <div class="m-label"><span class="m-swatch" style="background:var(--ember);"></span>Modelo B — Humo</div>
+        <div class="metric-row"><span class="k">Precisión</span><span class="v">0.99</span></div>
+        <div class="metric-row"><span class="k">Recall</span><span class="v">0.99</span></div>
+        <div class="metric-row"><span class="k">mAP@50</span><span class="v">0.99</span></div>
+      </div>
+    </div>
+
+    <div class="note-box">
+      <strong>Estado del proyecto:</strong> los modelos están en fase de validación con condiciones reales (luz diurna, fuego real) antes de considerarse listos para despliegue. Las métricas de Modelo B se están revisando frente a casos difíciles como vapor de agua, que aún no forman parte del set de entrenamiento.
+    </div>
+  </div>
+</section>
+
+<section id="equipo">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-eyebrow">Autoría</div>
+      <h2>Sobre el proyecto</h2>
+    </div>
+    <div class="team-card">
+      <div class="team-avatar">BM</div>
+      <div class="team-info">
+        <h3>Benjamín I. Morales Madrid</h3>
+        <p>Ingeniería Informática · Duoc UC, sede San Joaquín</p>
+        <p>Proyecto de título — 2025</p>
+        <div class="tag-row">
+          <span class="tag">YOLOv8</span>
+          <span class="tag">ONNX Runtime Web</span>
+          <span class="tag">Visión por computador</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  FireWatch · Proyecto de título · Duoc UC San Joaquín · 2025
+</footer>
+
+<nav>
+  <div class="nav-inner">
+    <div class="brand"><span class="brand-mark"></span>FireWatch</div>
+    
+    <!-- Botón de Hamburguesa -->
+    <button class="hamburger" id="hamburger" aria-label="Abrir menú">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+
+    <div class="nav-links" id="nav-links">
+      <a href="#inicio">Inicio</a>
+      <a href="#funciona">Cómo funciona</a>
+      <a href="#resultados">Resultados</a>
+      <a href="#equipo">Equipo</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ... resto del contenido ... -->
+
+<script>
+  const hamburger = document.getElementById('hamburger');
+  const navLinks = document.getElementById('nav-links');
+
+  // Abrir / Cerrar al hacer clic en el botón
+  hamburger.addEventListener('click', () => {
+    navLinks.classList.toggle('active');
+  });
+
+  // Cerrar el menú automáticamente al hacer clic en cualquier enlace
+  document.querySelectorAll('.nav-links a').forEach(link => {
+    link.addEventListener('click', () => {
+      navLinks.classList.remove('active');
+    });
+  });
+</script>
+
+<script>
+  const track = document.getElementById('carouselTrack');
+  const slides = document.querySelectorAll('.carousel-slide');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+
+  let currentIndex = 0;
+
+  function updateCarousel() {
+    track.style.transform = `translateX(-${currentIndex * 100}%)`;
+  }
+
+  nextBtn.addEventListener('click', () => {
+    currentIndex = (currentIndex + 1) % slides.length;
+    updateCarousel();
+  });
+
+  prevBtn.addEventListener('click', () => {
+    currentIndex = (currentIndex - 1 + slides.length) % slides.length;
+    updateCarousel();
+  });
+
+  // Avance automático cada 4 segundos
+  setInterval(() => {
+    currentIndex = (currentIndex + 1) % slides.length;
+    updateCarousel();
+  }, 4000);
+</script>
+
+</body>
+</html>
