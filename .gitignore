@@ -1,0 +1,13 @@
+# Entorno virtual
+.venv/
+venv/
+
+# Salidas de PyInstaller / Compilaciones
+build/
+dist/
+*.spec
+*.pkg
+
+# Imágenes de prueba y modelos pesados generados localmente
+alertas_pendientes/
+alertas_guardadas/
