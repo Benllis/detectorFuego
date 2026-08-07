@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>FireWatch — Test Ensemble</title>
+  <link rel="stylesheet" href="../css/test_ensemble.css">
+</head>
+<body>
+
+<!-- Navegación compartida con acceso a index.html -->
+<nav>
+  <div class="nav-inner">
+    <a href="index.html" class="brand"><span class="brand-mark"></span>FireWatch</a>
+    
+    <button class="hamburger" id="hamburger" aria-label="Abrir menú">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+
+    <div class="nav-links" id="nav-links">
+      <a href="index.html#inicio">Inicio</a>
+      <a href="index.html#funciona">Cómo funciona</a>
+      <a href="index.html#resultados">Resultados</a>
+      <a href="index.html#equipo">Equipo</a>
+      <a href="test_ensemble.html" class="active">Página de Test</a>
+    </div>
+  </div>
+</nav>
+
+<div class="main">
+
+  <div class="model-status">
+    <div class="model-box" id="box-a">
+      <div class="name">Modelo A — fuego</div>
+      <div id="status-a">🔄 Descargando modelo...</div>
+    </div>
+    <div class="model-box" id="box-b">
+      <div class="name">Modelo B — humo</div>
+      <div id="status-b">🔄 Descargando modelo...</div>
+    </div>
+  </div>
+
+  <div id="alert" class="idle">⏳ Cargando modelos automáticamente...</div>
+
+  <div class="video-wrap">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+    <div class="vid-pill" id="pill-status">Esperando modelos…</div>
+    <div class="vid-pill" id="pill-fps">-- FPS</div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">🔴 Fuego (A)</div>
+      <div class="stat-value red" id="cnt-fire">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">🟡 Humo (B)</div>
+      <div class="stat-value orange" id="cnt-smoke">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">✅ Frames OK</div>
+      <div class="stat-value green" id="cnt-ok">0</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn primary" id="btn-start" disabled onclick="startCam()">📷 Activar cámara</button>
+    <button class="btn" id="btn-stop" disabled onclick="stopCam()">⏹ Detener</button>
+    
+    <!-- Selector de Cámara -->
+    <select id="cam-select" class="btn" onchange="changeCam(this.value)">
+      <option value="">Cargando cámaras...</option>
+    </select>
+
+    <label class="conf-wrap">
+      Fire:
+      <input type="range" id="conf-a" min="10" max="90" value="30" oninput="CONF_A=this.value/100; document.getElementById('conf-a-val').textContent=this.value+'%'">
+      <span id="conf-a-val">30%</span>
+    </label>
+    <label class="conf-wrap">
+      Smoke:
+      <input type="range" id="conf-b" min="10" max="90" value="30" oninput="CONF_B=this.value/100; document.getElementById('conf-b-val').textContent=this.value+'%'">
+      <span id="conf-b-val">30%</span>
+    </label>
+  </div>
+
+</div>
+
+<footer>FireWatch · Test de ensemble Modelo A + Modelo B · No usar en producción</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
+
+<script>
+  // Menú hamburguesa
+  const hamburger = document.getElementById('hamburger');
+  const navLinks = document.getElementById('nav-links');
+  hamburger.addEventListener('click', () => navLinks.classList.toggle('active'));
+
+  // Rutas relativas a los archivos dentro de tu repositorio GitHub
+  const MODEL_A_URL = '../../../models/modelo_fire.onnx';
+  const MODEL_B_URL = '../../../models/modelo_smoke.onnx';
+  const SZ = 640;
+
+  let sessionA = null, sessionB = null, stream = null, raf = null;
+  let selectedDeviceId = null;
+  let CONF_A = 0.30, CONF_B = 0.30;
+  let totalFire = 0, totalSmoke = 0, totalOk = 0;
+  let tLast = performance.now(), fpsSmooth = 0;
+
+  const video = document.getElementById("video");
+  const canvas = document.getElementById("overlay");
+  const ctx = canvas.getContext("2d");
+
+  ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/";
+
+  async function loadModelAuto(url, which) {
+    try {
+      const session = await ort.InferenceSession.create(url, {
+        executionProviders: ["wasm"],
+        graphOptimizationLevel: "all",
+      });
+      if (which === 'a') { sessionA = session; setBoxOK('a'); }
+      else { sessionB = session; setBoxOK('b'); }
+      checkReady();
+    } catch (err) {
+      setBoxError(which, "No se pudo cargar: " + err.message);
+    }
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    loadModelAuto(MODEL_A_URL, 'a');
+    loadModelAuto(MODEL_B_URL, 'b');
+    getCameras();
+  });
+
+  function setBoxOK(which){
+    document.getElementById("box-"+which).className = "model-box ok";
+    document.getElementById("status-"+which).textContent = "✓ Modelo listo";
+  }
+  function setBoxError(which, msg){
+    document.getElementById("box-"+which).className = "model-box error";
+    document.getElementById("status-"+which).textContent = "❌ " + msg;
+  }
+  function checkReady(){
+    if(sessionA && sessionB){
+      document.getElementById("btn-start").disabled = false;
+      document.getElementById("pill-status").textContent = "Modelos listos";
+      setAlert("green", "✅ Ambos modelos cargados automáticamente — activa la cámara");
+    }
+  }
+
+  // ── Gestión de Dispositivos de Cámara ──
+  async function getCameras() {
+    const select = document.getElementById('cam-select');
+    try {
+      // Solicitamos permiso temporal para obtener los nombres de las cámaras
+      const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      tempStream.getTracks().forEach(track => track.stop()); // Cerramos el permiso temporal
+
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      select.innerHTML = '';
+
+      if (videoDevices.length === 0) {
+        select.innerHTML = '<option value="">No se hallaron cámaras</option>';
+        return;
+      }
+
+      videoDevices.forEach((device, index) => {
+        const option = document.createElement('option');
+        option.value = device.deviceId;
+        option.text = device.label || `Cámara ${index + 1}`;
+        select.appendChild(option);
+      });
+
+      selectedDeviceId = videoDevices[0].deviceId;
+    } catch (e) {
+      select.innerHTML = '<option value="">Sin acceso a cámara</option>';
+    }
+  }
+
+  function changeCam(deviceId) {
+    selectedDeviceId = deviceId;
+    if (stream) {
+      startCam(); // Reiniciar con la nueva cámara seleccionada
+    }
+  }
+
+  async function startCam(){
+    try {
+      if(stream) stream.getTracks().forEach(t=>t.stop());
+      
+      const constraints = {
+        video: selectedDeviceId 
+          ? { deviceId: { exact: selectedDeviceId }, width:{ideal:1280}, height:{ideal:720} }
+          : { facingMode: "environment", width:{ideal:1280}, height:{ideal:720} }
+      };
+
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = stream;
+      await video.play();
+      document.getElementById("btn-start").disabled = true;
+      document.getElementById("btn-stop").disabled  = false;
+      document.getElementById("pill-status").textContent = "● Detectando";
+      loop();
+    } catch(e){
+      alert("No se pudo acceder a la cámara seleccionada: " + e.message);
+    }
+  }
+
+  function stopCam(){
+    if(stream) stream.getTracks().forEach(t=>t.stop());
+    if(raf) cancelAnimationFrame(raf);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    document.getElementById("btn-start").disabled = false;
+    document.getElementById("btn-stop").disabled  = true;
+    document.getElementById("pill-status").textContent = "⏸ Detenido";
+    setAlert("idle","⏸ Cámara detenida");
+  }
+
+  async function loop(){
+    if(!sessionA || !sessionB || video.readyState < 2){ raf=requestAnimationFrame(loop); return; }
+
+    canvas.width  = video.videoWidth  || video.clientWidth;
+    canvas.height = video.videoHeight || video.clientHeight;
+
+    try {
+      const off  = new OffscreenCanvas(SZ, SZ);
+      const octx = off.getContext("2d");
+      octx.drawImage(video, 0, 0, SZ, SZ);
+      const { data: px } = octx.getImageData(0, 0, SZ, SZ);
+
+      const t = new Float32Array(3*SZ*SZ);
+      for(let i=0;i<SZ*SZ;i++){
+        t[            i] = px[i*4]  /255;
+        t[  SZ*SZ + i]   = px[i*4+1]/255;
+        t[2*SZ*SZ + i]   = px[i*4+2]/255;
+      }
+      const tensor = new ort.Tensor("float32", t, [1,3,SZ,SZ]);
+
+      const [detsFire, detsSmoke] = await Promise.all([
+        runModel(sessionA, tensor, CONF_A),
+        runModel(sessionB, tensor, CONF_B),
+      ]);
+
+      draw(detsFire, detsSmoke);
+      updateUI(detsFire, detsSmoke);
+    } catch(e){ console.warn(e); }
+
+    const now = performance.now();
+    fpsSmooth = fpsSmooth*.85 + (1000/(now-tLast))*.15;
+    tLast = now;
+    document.getElementById("pill-fps").textContent = Math.round(fpsSmooth)+" FPS";
+
+    raf = requestAnimationFrame(loop);
+  }
+
+  async function runModel(session, tensor, conf){
+    const out  = await session.run({ [session.inputNames[0]]: tensor });
+    const raw  = out[session.outputNames[0]].data;
+    const dims = out[session.outputNames[0]].dims;
+    return parseSingleClass(raw, dims, conf);
+  }
+
+  function parseSingleClass(data, dims, conf){
+    const nAnc = dims[2] ?? (data.length/5);
+    const dets = [];
+    for(let a=0;a<nAnc;a++){
+      const score = data[4*nAnc+a];
+      if(score >= conf){
+        dets.push({
+          cx: data[0*nAnc+a], cy: data[1*nAnc+a],
+          w:  data[2*nAnc+a], h:  data[3*nAnc+a],
+          conf: score,
+        });
+      }
+    }
+    return nms(dets, .45);
+  }
+
+  function nms(dets, thr){
+    dets.sort((a,b)=>b.conf-a.conf);
+    const keep=[]; const used=new Set();
+    for(let i=0;i<dets.length;i++){
+      if(used.has(i)) continue;
+      keep.push(dets[i]);
+      for(let j=i+1;j<dets.length;j++)
+        if(!used.has(j) && iou(dets[i],dets[j])>thr) used.add(j);
+    }
+    return keep;
+  }
+
+  function iou(a,b){
+    const ax1=a.cx-a.w/2,ay1=a.cy-a.h/2,ax2=a.cx+a.w/2,ay2=a.cy+a.h/2;
+    const bx1=b.cx-b.w/2,by1=b.cy-b.h/2,bx2=b.cx+b.w/2,by2=b.cy+b.h/2;
+    const ix=Math.max(0,Math.min(ax2,bx2)-Math.max(ax1,bx1));
+    const iy=Math.max(0,Math.min(ay2,by2)-Math.max(ay1,by1));
+    const inter=ix*iy;
+    return inter/((ax2-ax1)*(ay2-ay1)+(bx2-bx1)*(by2-by1)-inter);
+  }
+
+  function draw(detsFire, detsSmoke){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    const W=canvas.width, H=canvas.height;
+    drawSet(detsFire,  "#ef4444", "fire",  W, H);
+    drawSet(detsSmoke, "#f97316", "smoke", W, H);
+  }
+
+  function drawSet(dets, color, label, W, H){
+    for(const d of dets){
+      const text = `${label} ${(d.conf*100).toFixed(0)}%`;
+      const x=(d.cx-d.w/2)*W, y=(d.cy-d.h/2)*H;
+      const w=d.w*W,           h=d.h*H;
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = 2.5;
+      ctx.shadowColor = color;
+      ctx.shadowBlur  = 8;
+      ctx.strokeRect(x,y,w,h);
+      ctx.shadowBlur  = 0;
+
+      ctx.font = "bold 13px -apple-system, sans-serif";
+      const tw = ctx.measureText(text).width;
+      ctx.fillStyle = color+"cc";
+      ctx.fillRect(x, y-22, tw+12, 22);
+      ctx.fillStyle = "#fff";
+      ctx.fillText(text, x+6, y-6);
+    }
+  }
+
+  function updateUI(detsFire, detsSmoke){
+    const hasFire  = detsFire.length  > 0;
+    const hasSmoke = detsSmoke.length > 0;
+
+    totalFire  += detsFire.length;
+    totalSmoke += detsSmoke.length;
+    if(!hasFire && !hasSmoke) totalOk++;
+
+    document.getElementById("cnt-fire").textContent  = totalFire;
+    document.getElementById("cnt-smoke").textContent = totalSmoke;
+    document.getElementById("cnt-ok").textContent    = totalOk;
+
+    if(hasFire && hasSmoke){
+      setAlert("red", "🔴 FUEGO + HUMO — Alerta máxima");
+    } else if(hasFire){
+      setAlert("yellow", "🟡 Fuego visible — Sin humo detectado");
+    } else if(hasSmoke){
+      setAlert("yellow", "🟡 Humo detectado — Posible inicio de incendio");
+    } else {
+      setAlert("green", "✅ Sin amenaza — todo normal");
+    }
+  }
+
+  function setAlert(cls, msg){
+    const el = document.getElementById("alert");
+    el.className = cls;
+    el.textContent = msg;
+  }
+</script>
+</body>
+</html>
