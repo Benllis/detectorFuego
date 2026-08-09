@@ -8,11 +8,14 @@ import numpy as np
 import onnxruntime as ort
 import customtkinter as ctk
 from PIL import Image
+import requests
+
 
 def resource_path(relative_path):
     if hasattr(sys, '_MEIPASS'):
         return os.path.join(sys._MEIPASS, relative_path)
     return os.path.join(os.path.abspath("."), relative_path)
+
 
 class CameraThread(threading.Thread):
     def __init__(self, src=0):
@@ -47,11 +50,16 @@ class CameraThread(threading.Thread):
         if self.cap.isOpened():
             self.cap.release()
 
+
 class FireWatchApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("FireWatch — Emisor de Alertas para Central")
         self.geometry("900x750")
+
+        # Configuración Local de Cámara
+        self.config_path = "camera_config.json"
+        self.cam_config = self.load_camera_config()
 
         # Cargar Modelos ONNX
         path_a = resource_path(os.path.join("..", "models", "modelo_a_fire.onnx"))
@@ -104,6 +112,62 @@ class FireWatchApp(ctk.CTk):
         self.cam_thread = None
         self.is_running = False
 
+    def load_camera_config(self):
+        """Carga la configuración de la cámara desde JSON o usa valores por defecto"""
+        default_config = {
+            "id_camara": "CAM_DEFAULT",
+            "orientacion_cardinal": "Norte (N)",
+            "azimut_grados": 0,
+            "respaldo_offline": {
+                "direccion": "Ubicación local no registrada",
+                "latitud": 0.0,
+                "longitud": 0.0
+            }
+        }
+        if os.path.exists(self.config_path):
+            try:
+                with open(self.config_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return default_config
+
+    def get_location_data(self):
+        """Obtiene la dirección y coordenadas precisas de la cámara."""
+        offline_data = self.cam_config.get("respaldo_offline", {})
+
+        try:
+            # 1. Obtener coordenadas por geolocalización de red más precisa (ip-api)
+            ip_resp = requests.get('http://ip-api.com/json/', timeout=3).json()
+            
+            if ip_resp.get("status") == "success":
+                lat = ip_resp.get('lat')
+                lon = ip_resp.get('lon')
+
+                # 2. Consultar la dirección exacta en OpenStreetMap (Nominatim)
+                headers = {'User-Agent': 'FireWatch-Camara/1.0'}
+                url = f"https://nominatim.openstreetmap.org/reverse?format=json&lat={lat}&lon={lon}"
+                
+                osm_resp = requests.get(url, headers=headers, timeout=4).json()
+
+                if "display_name" in osm_resp:
+                    return {
+                        "direccion": osm_resp["display_name"],
+                        "latitud": float(lat),
+                        "longitud": float(lon),
+                        "fuente": "OpenStreetMap + GeoIP Preciso"
+                    }
+        except Exception as e:
+            print(f"[GPS WARNING] No se pudo obtener ubicación en línea, usando respaldo offline: {e}")
+
+        # Respaldo offline en caso de falla de conexión o diferencia amplia
+        return {
+            "direccion": offline_data.get("direccion", "Sin dirección registrada"),
+            "latitud": offline_data.get("latitud", 0.0),
+            "longitud": offline_data.get("longitud", 0.0),
+            "fuente": "Configuración Local (Offline)"
+        }
+    
     def start_cam(self):
         self.cam_thread = CameraThread(0)
         self.cam_thread.start()
@@ -193,8 +257,8 @@ class FireWatchApp(ctk.CTk):
         elif current_state == "FIRE":
             cooldown = self.COOLDOWN_FIRE
 
-        # Regla 1: Si subió el nivel de amenaza (ej. de solo Humo a Fuego), envía Inmediato.
-        # Regla 2: Si es el mismo nivel o inferior, respeta el tiempo de Cooldown.
+        # Regla 1: Si subió el nivel de amenaza, envía inmediato.
+        # Regla 2: Si es el mismo nivel o inferior, respeta el Cooldown.
         should_send = False
         if current_priority > last_priority:
             should_send = True
@@ -207,7 +271,7 @@ class FireWatchApp(ctk.CTk):
             self.dispatch_alert(frame, current_state)
 
     def dispatch_alert(self, frame, alert_type):
-        """Genera el paquete de datos (Foto JPG + Metadata JSON) listo para consumo externo"""
+        """Genera el paquete de datos listo para la app de bomberos"""
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         base_name = f"{alert_type.lower()}_{timestamp}"
 
@@ -217,7 +281,10 @@ class FireWatchApp(ctk.CTk):
         # 1. Guardar Fotografía
         cv2.imwrite(img_path, frame)
 
-        # 2. Guardar Metadata para la central de bomberos
+        # 2. Consultar Ubicación
+        location = self.get_location_data()
+
+        # 3. Guardar Metadata completa
         metadata = {
             "id_alerta": base_name,
             "tipo": alert_type,
@@ -225,13 +292,19 @@ class FireWatchApp(ctk.CTk):
             "fecha_hora": time.strftime("%Y-%m-%d %H:%M:%S"),
             "fuego_detectado": len(self.last_fire_dets) > 0,
             "humo_detectado": len(self.last_smoke_dets) > 0,
+            "camara": {
+                "id": self.cam_config.get("id_camara", "CAM_01"),
+                "orientacion": self.cam_config.get("orientacion_cardinal", "N/A"),
+                "azimut": self.cam_config.get("azimut_grados", 0)
+            },
+            "ubicacion": location,
             "imagen_asociada": f"{base_name}.jpg"
         }
 
         with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(metadata, f, indent=4)
+            json.dump(metadata, f, indent=4, ensure_ascii=False)
 
-        print(f"[PAQUETE DE ALERTA GENERADO] Tipo: {alert_type} | Archivo: {base_name}")
+        print(f"[ALERTA GENERADA] {alert_type} | Cámara: {metadata['camara']['id']} | Dirección: {location['direccion']}")
 
     def update_frame(self):
         if not self.is_running:

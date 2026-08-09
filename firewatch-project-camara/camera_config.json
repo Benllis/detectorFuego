@@ -1,0 +1,10 @@
+{
+    "id_camara": "CAM_SECTOR_01",
+    "orientacion_cardinal": "Noreste (NE)",
+    "azimut_grados": 45,
+    "respaldo_offline": {
+        "direccion": "Av. Vicuña Mackenna 7200, La Florida, Región Metropolitana",
+        "latitud": -33.5227,
+        "longitud": -70.5859
+    }
+}
