@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FireWatch — Mapa 3D</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+<link href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="map"></div>
+
+<div class="badge"><span class="dot"></span>
+  <span><b>FireWatch · Mapa 3D</b> — mapa real (OpenStreetMap + terreno 3D real), viento y temperatura en vivo desde Open-Meteo. Sin API key, sin datos ficticios.</span>
+</div>
+
+<div class="panel" id="controls">
+  <h2>🗺️ Capas</h2>
+  <div class="toggle-row"><span>Viento (partículas)</span><input type="checkbox" id="toggle-wind" checked></div>
+  <div class="toggle-row"><span>Mapa de calor (temperatura)</span><input type="checkbox" id="toggle-heat" checked></div>
+  <div class="toggle-row"><span>Sensor de cámara</span><input type="checkbox" id="toggle-cam" checked></div>
+  <div class="toggle-row"><span>Cobertura vegetal (riesgo combustible)</span><input type="checkbox" id="toggle-fuel" checked></div>
+
+  <div class="legend">
+    <div class="sw-row"><span class="sw" style="background:#3b82f6;"></span>Viento calmo</div>
+    <div class="sw-row"><span class="sw" style="background:#2fae6d;"></span>Viento suave</div>
+    <div class="sw-row"><span class="sw" style="background:#e8b93d;"></span>Viento moderado</div>
+    <div class="sw-row"><span class="sw" style="background:#e5484d;"></span>Viento fuerte</div>
+  </div>
+
+  <div class="legend" style="margin-top:.9rem;">
+    <div class="sw-row"><span class="sw" style="background:#006400;"></span>Bosque / matorral — riesgo alto</div>
+    <div class="sw-row"><span class="sw" style="background:#ffff4c;"></span>Pastizal — riesgo medio</div>
+    <div class="sw-row"><span class="sw" style="background:#f096ff;"></span>Cultivo — riesgo medio-bajo</div>
+    <div class="sw-row"><span class="sw" style="background:#fa0000;"></span>Urbano — riesgo bajo</div>
+    <div class="sw-row"><span class="sw" style="background:#0064c8;"></span>Agua — sin riesgo</div>
+  </div>
+
+  <button class="btn" id="btn-refresh">🔄 Actualizar datos ahora</button>
+</div>
+
+<div class="panel" id="info">
+  <h2>📍 Estado actual</h2>
+  <div id="info-body"><div class="info-line">Cargando datos de Open-Meteo…</div></div>
+</div>
+
+<div id="status-bar"><span id="status-text">Iniciando mapa…</span></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/weather-grid.js"></script>
+<script src="js/map-init.js"></script>
+<script src="js/wind-layer.js"></script>
+<script src="js/heat-layer.js"></script>
+<script src="js/fuel-layer.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
