@@ -2,17 +2,48 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-  <title>FireWatch — Test Ensemble</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FireWatch — Detección temprana de incendios forestales</title>
+  <meta name="description" content="Sistema de detección temprana de incendios forestales con visión por computador. Proyecto de título, Ingeniería Informática, Duoc UC.">
+  
+  <!-- Tipografías -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Estilos externos -->
+  <link rel="stylesheet" href="../css/styles.css">
   <link rel="stylesheet" href="../css/test_ensemble.css">
+  
+  <style>
+    /* Estilos inline para la barra de progreso */
+    .progress-bar-wrap {
+      width: 100%;
+      height: 8px;
+      background-color: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 6px;
+      display: none; /* Se activa al comenzar la descarga */
+    }
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #f97316, #ef4444);
+      transition: width 0.1s linear;
+    }
+    .model-box.ok .progress-bar-wrap {
+      display: none; /* Oculta la barra al completar */
+    }
+  </style>
 </head>
 <body>
 
-<!-- Navegación compartida con acceso a index.html -->
 <nav>
   <div class="nav-inner">
     <a href="index.html" class="brand"><span class="brand-mark"></span>FireWatch</a>
     
+    <!-- Botón de Hamburguesa -->
     <button class="hamburger" id="hamburger" aria-label="Abrir menú">
       <span></span>
       <span></span>
@@ -34,11 +65,18 @@
   <div class="model-status">
     <div class="model-box" id="box-a">
       <div class="name">Modelo A — fuego</div>
-      <div id="status-a">🔄 Descargando modelo...</div>
+      <div id="status-a">🔄 Iniciando...</div>
+      <div class="progress-bar-wrap" id="pwrap-a">
+        <div class="progress-bar-fill" id="pfill-a"></div>
+      </div>
     </div>
+
     <div class="model-box" id="box-b">
       <div class="name">Modelo B — humo</div>
-      <div id="status-b">🔄 Descargando modelo...</div>
+      <div id="status-b">🔄 Iniciando...</div>
+      <div class="progress-bar-wrap" id="pwrap-b">
+        <div class="progress-bar-fill" id="pfill-b"></div>
+      </div>
     </div>
   </div>
 
@@ -99,9 +137,11 @@
   const navLinks = document.getElementById('nav-links');
   hamburger.addEventListener('click', () => navLinks.classList.toggle('active'));
 
-  // Rutas relativas a los archivos dentro de tu repositorio GitHub
-  const MODEL_A_URL = '../../../models/modelo_a_fire.onnx';
-  const MODEL_B_URL = '../../../models/modelo_b_smoke.onnx';
+// URLs de los modelos alojados en GitHub Releases
+  const MODEL_A_URL = 'https://raw.githubusercontent.com/Benllis/detectorFuego/main/models/modelo_a_fire.onnx';
+  const MODEL_B_URL = 'https://raw.githubusercontent.com/Benllis/detectorFuego/main/models/modelo_b_smoke.onnx';
+
+  const CACHE_NAME = 'firewatch-models-v1';
   const SZ = 640;
 
   let sessionA = null, sessionB = null, stream = null, raf = null;
@@ -116,17 +156,120 @@
 
   ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/";
 
+  /**
+   * Descarga con seguimiento de progreso, manejo de redirecciones de GitHub y caché local
+   */
+  async function fetchModelWithCacheProgress(url, which) {
+    const statusEl = document.getElementById("status-" + which);
+    const pWrap = document.getElementById("pwrap-" + which);
+    const pFill = document.getElementById("pfill-" + which);
+
+    // 1. Intentar obtener desde la Cache API si ya existe
+    if ('caches' in window) {
+      try {
+        const cache = await caches.open(CACHE_NAME);
+        const cachedResponse = await cache.match(url);
+        if (cachedResponse) {
+          if (statusEl) statusEl.textContent = "⚡ Cargado desde caché (100%)";
+          return await cachedResponse.arrayBuffer();
+        }
+      } catch (e) {
+        console.warn("No se pudo leer la caché:", e);
+      }
+    }
+
+    // 2. Si no está en caché, realizar la petición HTTP permitiendo redirecciones (GitHub Releases / Raw)
+    if (statusEl) statusEl.textContent = "🌐 Conectando...";
+    if (pWrap) pWrap.style.display = "block";
+
+    let response;
+    try {
+      response = await fetch(url, {
+        method: 'GET',
+        mode: 'cors',
+        redirect: 'follow'
+      });
+    } catch (err) {
+      throw new Error("Error de conexión/CORS. Verifica que estés ejecutando la página con un servidor local (Live Server).");
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const contentLength = response.headers.get('content-length');
+    const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
+
+    const reader = response.body.getReader();
+    let receivedBytes = 0;
+    const chunks = [];
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      chunks.push(value);
+      receivedBytes += value.length;
+
+      if (totalBytes) {
+        const pct = Math.round((receivedBytes / totalBytes) * 100);
+        const mbReceived = (receivedBytes / (1024 * 1024)).toFixed(1);
+        const mbTotal = (totalBytes / (1024 * 1024)).toFixed(1);
+        
+        if (statusEl) statusEl.textContent = `📥 Descargando: ${pct}% (${mbReceived} / ${mbTotal} MB)`;
+        if (pFill) pFill.style.width = `${pct}%`;
+      } else {
+        const mbReceived = (receivedBytes / (1024 * 1024)).toFixed(1);
+        if (statusEl) statusEl.textContent = `📥 Descargando: ${mbReceived} MB...`;
+      }
+    }
+
+    const allChunks = new Uint8Array(receivedBytes);
+    let position = 0;
+    for (const chunk of chunks) {
+      allChunks.set(chunk, position);
+      position += chunk.length;
+    }
+
+    // 3. Guardar copia en la caché local para próximas cargas
+    if ('caches' in window) {
+      try {
+        const cache = await caches.open(CACHE_NAME);
+        const cacheResponse = new Response(allChunks.buffer, {
+          headers: { 'Content-Type': 'application/octet-stream' }
+        });
+        await cache.put(url, cacheResponse);
+      } catch (e) {
+        console.warn("No se pudo guardar en caché:", e);
+      }
+    }
+
+    return allChunks.buffer;
+  }
+
+
   async function loadModelAuto(url, which) {
     try {
-      const session = await ort.InferenceSession.create(url, {
+      const modelBuffer = await fetchModelWithCacheProgress(url, which);
+
+      const statusEl = document.getElementById("status-" + which);
+      if (statusEl) statusEl.textContent = "⚙️ Compilando grafo ONNX...";
+
+      const session = await ort.InferenceSession.create(new Uint8Array(modelBuffer), {
         executionProviders: ["wasm"],
         graphOptimizationLevel: "all",
       });
-      if (which === 'a') { sessionA = session; setBoxOK('a'); }
-      else { sessionB = session; setBoxOK('b'); }
+
+      if (which === 'a') { 
+        sessionA = session; 
+        setBoxOK('a'); 
+      } else { 
+        sessionB = session; 
+        setBoxOK('b'); 
+      }
       checkReady();
     } catch (err) {
-      setBoxError(which, "No se pudo cargar: " + err.message);
+      setBoxError(which, "Error: " + err.message);
     }
   }
 
@@ -156,10 +299,9 @@
   async function getCameras() {
     const select = document.getElementById('cam-select');
     try {
-      // Solicitamos permiso temporal para obtener los nombres de las cámaras
       const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
       const devices = await navigator.mediaDevices.enumerateDevices();
-      tempStream.getTracks().forEach(track => track.stop()); // Cerramos el permiso temporal
+      tempStream.getTracks().forEach(track => track.stop());
 
       const videoDevices = devices.filter(device => device.kind === 'videoinput');
       select.innerHTML = '';
@@ -185,7 +327,7 @@
   function changeCam(deviceId) {
     selectedDeviceId = deviceId;
     if (stream) {
-      startCam(); // Reiniciar con la nueva cámara seleccionada
+      startCam();
     }
   }
 
@@ -313,7 +455,7 @@
     for(const d of dets){
       const text = `${label} ${(d.conf*100).toFixed(0)}%`;
       const x=(d.cx-d.w/2)*W, y=(d.cy-d.h/2)*H;
-      const w=d.w*W,           h=d.h*H;
+      const w=d.w*W,         h=d.h*H;
 
       ctx.strokeStyle = color;
       ctx.lineWidth   = 2.5;

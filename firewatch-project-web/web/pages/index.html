@@ -19,11 +19,18 @@
 <nav>
   <div class="nav-inner">
     <div class="brand"><span class="brand-mark"></span>FireWatch</div>
-    <div class="nav-links">
-      <a href="#inicio">Inicio</a>
-      <a href="#funciona">Cómo funciona</a>
-      <a href="#resultados">Resultados</a>
-      <a href="#equipo">Equipo</a>
+    
+    <!-- Botón de Hamburguesa -->
+    <button class="hamburger" id="hamburger" aria-label="Abrir menú">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+
+    <div class="nav-links" id="nav-links">
+      <a href="./index.html">Inicio</a>
+      <a href="./descarga.html">Descarga</a>
+      <a href="./test_ensemble.html">Prueba</a>
     </div>
   </div>
 </nav>
@@ -34,26 +41,13 @@
     <div class="hero-text">
       <div class="eyebrow"><span class="dot"></span>Proyecto de título · Ingeniería Informática</div>
       <h1>Detección temprana de <em>incendios forestales</em> con visión por computador</h1>
-      <p>FireWatch observa una cámara en tiempo real y clasifica lo que ve en tres estados: normal, humo o fuego — corriendo directo en el navegador, sin instalar nada.</p>
+      <p>
+        FireWatch busca mitigar los daños provocados por incendios, ya sea en lugares urbanos como rurales y poder prevenir grandes catastrofes ocacionadas por este mismo. 
+      </p>
       
       <div class="cta-row">
         <a href="#funciona" class="btn btn-primary">Cómo funciona →</a>
         <a href="#resultados" class="btn btn-ghost">Ver resultados</a>
-      </div>
-
-      <div class="status-strip mono">
-        <div class="status-cell on">
-          <div class="status-dot" style="background:var(--green); box-shadow:0 0 0 4px rgba(47,174,109,.15);"></div>
-          <div class="status-label">Normal</div>
-        </div>
-        <div class="status-cell">
-          <div class="status-dot" style="background:var(--ember);"></div>
-          <div class="status-label">Humo</div>
-        </div>
-        <div class="status-cell">
-          <div class="status-dot" style="background:var(--red);"></div>
-          <div class="status-label">Fuego</div>
-        </div>
       </div>
     </div>
 
@@ -61,8 +55,8 @@
     <div class="hero-carousel">
       <div class="carousel-container">
         <div class="carousel-track" id="carouselTrack">
-          <div class="carousel-slide"><img src="https://picsum.photos/800/500?random=1" alt="Detección 1"></div>
-          <div class="carousel-slide"><img src="https://picsum.photos/800/500?random=2" alt="Detección 2"></div>
+          <div class="carousel-slide"><img src="../images/3914af09-ad7b-4459-aeaf-fa9c09e8ec7b.png" alt="Detección 1"></div>
+          <div class="carousel-slide"><img src="../images/6ac5a04d-c168-401c-9ea6-0d1566b8b9ed.png" alt="Detección 2"></div>
           <div class="carousel-slide"><img src="https://picsum.photos/800/500?random=3" alt="Detección 3"></div>
         </div>
         <!-- Botones de navegación -->
@@ -76,37 +70,37 @@
 <section id="funciona">
   <div class="wrap">
     <div class="section-head">
-      <div class="section-eyebrow">Pipeline</div>
+      <div class="section-eyebrow">Como funciona</div>
       <h2>De la cámara a la alerta</h2>
-      <p>Cuatro pasos, todos corriendo en el dispositivo — la imagen nunca sale del navegador durante la detección.</p>
+      <p>Cuatro pasos.</p>
     </div>
     <div class="pipeline">
       <div class="pstep">
         <div class="pnum">01</div>
         <div>
           <h3>Captura</h3>
-          <p>La cámara del celular, PC o sistema de vigilancia entrega un frame de video cada ciertos milisegundos.</p>
+          <p>Las cámara vinculadas con el program observan a tiempo real si hay indicios de incendios o humo gracias a 2 modelos de IA.</p>
         </div>
       </div>
       <div class="pstep">
         <div class="pnum">02</div>
         <div>
-          <h3>Inferencia local</h3>
-          <p>Dos modelos — uno especializado en fuego, otro en humo — corren en paralelo, revisando si existe alguna aparición de fuego o humo.</p>
+          <h3>Alerta</h3>
+          <p>Si se detecta una alerta de fuego o humo, se le enviara un mensaje a las 3 estaciones de bomberos mas cercanas con una imagen adjunta.</p>
         </div>
       </div>
       <div class="pstep">
         <div class="pnum">03</div>
         <div>
-          <h3>Clasificación combinada</h3>
-          <p>El resultado de ambos modelos se combina en un semáforo de tres niveles: verde (sin amenaza), amarillo (fuego o humo aislado), rojo (ambos presentes).</p>
+          <h3>Interpretación</h3>
+          <p>En las estaciones de bomberos se puede determinar si existe inicios de incendios, en caso de que se determine que si, bomberos acudira al lugar.</p>
         </div>
       </div>
       <div class="pstep">
         <div class="pnum">04</div>
         <div>
-          <h3>Reporte</h3>
-          <p>Ante una alerta amarilla o roja, se genera un reporte con foto y ubicación, destinado a un panel de monitoreo con acceso restringido.</p>
+          <h3>Ayuda de Bomberos</h3>
+          <p>Bomberos constara con una ayuda para determinar el peligro del incendio, dependiendo de la gravedad se crearan medidas de mitigación.</p>
         </div>
       </div>
     </div>
@@ -154,11 +148,12 @@
         <h3>Benjamín I. Morales Madrid</h3>
         <p>Ingeniería Informática · Duoc UC, sede San Joaquín</p>
         <p>Proyecto de título — 2025</p>
-        <div class="tag-row">
-          <span class="tag">YOLOv8</span>
-          <span class="tag">ONNX Runtime Web</span>
-          <span class="tag">Visión por computador</span>
-        </div>
+      </div>
+      <div class="team-avatar">NV</div>
+      <div class="team-info">
+        <h3>Nicolas Navarro</h3>
+        <p>Ingeniería Informática · Duoc UC, sede San Joaquín</p>
+        <p>Proyecto de título — 2025</p>
       </div>
     </div>
   </div>
@@ -168,25 +163,6 @@
   FireWatch · Proyecto de título · Duoc UC San Joaquín · 2025
 </footer>
 
-<nav>
-  <div class="nav-inner">
-    <div class="brand"><span class="brand-mark"></span>FireWatch</div>
-    
-    <!-- Botón de Hamburguesa -->
-    <button class="hamburger" id="hamburger" aria-label="Abrir menú">
-      <span></span>
-      <span></span>
-      <span></span>
-    </button>
-
-    <div class="nav-links" id="nav-links">
-      <a href="#inicio">Inicio</a>
-      <a href="#funciona">Cómo funciona</a>
-      <a href="#resultados">Resultados</a>
-      <a href="#equipo">Equipo</a>
-    </div>
-  </div>
-</nav>
 
 <!-- ... resto del contenido ... -->
 
