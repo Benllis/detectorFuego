@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FireWatch — Detección temprana de incendios forestales</title>
-  <meta name="description" content="Sistema de detección temprana de incendios forestales con visión por computador. Proyecto de título, Ingeniería Informática, Duoc UC.">
+  <title>Descarga — FireWatch Cámara</title>
+  <meta name="description" content="Descarga el sistema local de detección de incendios mediante cámaras. Proyecto de título, Duoc UC.">
   
   <!-- Tipografías -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,14 +13,86 @@
   
   <!-- Estilos externos -->
   <link rel="stylesheet" href="../css/styles.css">
+  <link rel="stylesheet" href="../css/test_ensemble.css">
+
+  <style>
+    .download-container {
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+    .download-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 32px;
+      margin-bottom: 24px;
+      backdrop-filter: blur(10deg);
+    }
+    .download-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .download-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #fff;
+    }
+    .badge {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    .steps-list {
+      margin: 20px 0;
+      padding-left: 20px;
+      color: #cbd5e1;
+      line-height: 1.8;
+    }
+    .code-block {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      padding: 14px 18px;
+      border-radius: 8px;
+      font-family: 'IBM Plex Mono', monospace;
+      color: #38bdf8;
+      font-size: 0.9rem;
+      margin: 12px 0;
+      overflow-x: auto;
+    }
+    .btn-download {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: linear-gradient(135deg, #f97316, #ef4444);
+      color: #fff;
+      font-weight: 600;
+      padding: 14px 28px;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .btn-download:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3);
+    }
+  </style>
 </head>
 <body>
 
 <nav>
   <div class="nav-inner">
-    <div class="brand"><span class="brand-mark"></span>FireWatch</div>
+    <a href="index.html" class="brand"><span class="brand-mark"></span>FireWatch</a>
     
-    <!-- Botón de Hamburguesa -->
     <button class="hamburger" id="hamburger" aria-label="Abrir menú">
       <span></span>
       <span></span>
@@ -29,8 +101,82 @@
 
     <div class="nav-links" id="nav-links">
       <a href="./index.html">Inicio</a>
-      <a href="./descarga.html">Descarga</a>
+      <a href="./descarga.html" class="active">Descarga</a>
       <a href="./test_ensemble.html">Prueba</a>
     </div>
   </div>
 </nav>
+
+<main class="download-container">
+
+  <!-- Tarjeta Principal de Descarga -->
+  <div class="download-card">
+    <div class="download-header">
+      <div>
+        <h1 class="download-title">Módulo de Cámara — FireWatch</h1>
+        <p style="color: #94a3b8; margin-top: 4px;">Programa en Python para captura y análisis directo de cámaras en tiempo real.</p>
+      </div>
+      <span class="badge">Versión 1.0 (ZIP)</span>
+    </div>
+
+    <p style="color: #e2e8f0; line-height: 1.6;">
+      Este paquete incluye el sistema ejecutable local para conectar cámaras IP o Webcams directamente con el modelo de visión multicámara sin necesidad del navegador.
+    </p>
+
+    <!-- Botón de descarga directa -->
+    <div style="margin-top: 28px;">
+      <a href="https://github.com/Benllis/detectorFuego/releases/download/v1.0/firewatch-camara.zip" download class="btn-download">
+        <span>📦</span> Descargar Módulo de Cámara (.ZIP)
+      </a>
+    </div>
+  </div>
+
+  <!-- Instrucciones de Uso -->
+  <div class="download-card">
+    <h2 style="font-family: 'Space Grotesk', sans-serif; color: #fff; font-size: 1.3rem; margin-bottom: 16px;">
+      ⚙️ Guía de instalación y ejecución
+    </h2>
+    
+    <ol class="steps-list">
+      <li>
+        <strong>Descomprimir el archivo:</strong> Extrae el contenido de <code>firewatch-camara.zip</code> en tu computadora.
+      </li>
+      <li>
+        <strong>Instalar dependencias:</strong> Abre la terminal en la carpeta extraída e instala las librerías necesarias ejecutando:
+        <div class="code-block">pip install -r requirements.txt</div>
+      </li>
+      <li>
+        <strong>Configurar cámaras:</strong> Revisa el archivo <code>cameras_config.json</code> para agregar la dirección IP o el ID de tus cámaras.
+      </li>
+      <li>
+        <strong>Ejecutar la aplicación:</strong> Inicia el programa ejecutando:
+        <div class="code-block">python main_multicamera.py</div>
+      </li>
+    </ol>
+  </div>
+
+  <!-- Requisitos del Sistema -->
+  <div class="download-card">
+    <h2 style="font-family: 'Space Grotesk', sans-serif; color: #fff; font-size: 1.3rem; margin-bottom: 12px;">
+      💻 Requisitos del Sistema
+    </h2>
+    <ul class="steps-list" style="list-style-type: disc;">
+      <li>Python 3.9 o superior.</li>
+      <li>Cámara USB, Webcam o Cámara con transmisión RTSP/IP.</li>
+      <li>Conexión a Internet (solo para la descarga inicial).</li>
+    </ul>
+  </div>
+
+</main>
+
+<footer>FireWatch · Proyecto de título, Ingeniería Informática, Duoc UC</footer>
+
+<script>
+  // Menú hamburguesa
+  const hamburger = document.getElementById('hamburger');
+  const navLinks = document.getElementById('nav-links');
+  hamburger.addEventListener('click', () => navLinks.classList.toggle('active'));
+</script>
+
+</body>
+</html>
