@@ -26,7 +26,7 @@ function initMap() {
     map.addSource('terrainSource', { type: 'raster-dem', url: CONFIG.terrainTileJSON });
     map.setTerrain({ source: 'terrainSource', exaggeration: CONFIG.terrainExaggeration });
 
-    // Cielo/atmósfera — propiedad de estilo aparte, no una capa (addLayer no aplica acá)
+    // Cielo/atmósfera — propiedad de estilo aparte, no una capa
     map.setSky({
       'sky-color': '#1b2838',
       'sky-horizon-blend': 0.5,
@@ -60,8 +60,7 @@ function initMap() {
     map.on('mouseenter', 'camera-sensor-point', () => map.getCanvas().style.cursor = 'pointer');
     map.on('mouseleave', 'camera-sensor-point', () => map.getCanvas().style.cursor = '');
 
-    // Borde que marca el área real que cubre la grilla de viento/temperatura
-    // (calculada a partir de TODAS las cámaras — ver computeAreaOfInterest en config.js).
+    // Borde que marca el área real de análisis (fijo — no se mueve al navegar el mapa).
     map.addSource('coverage-boundary', {
       type: 'geojson',
       data: buildCircleGeoJSON(AREA.center, AREA.radiusKm),
@@ -71,9 +70,7 @@ function initMap() {
       paint: { 'line-color': '#7d8a9a', 'line-width': 1.5, 'line-dasharray': [2, 2], 'line-opacity': 0.6 },
     });
 
-    // Encuadrar el mapa en el área que cubren las cámaras + margen.
-    // padding: le avisamos a MapLibre que los paneles de la interfaz tapan
-    // parte de la pantalla, para que centre el área visible real.
+    // Encuadrar el mapa en el área fija de cobertura + margen.
     const bounds = boundsFromCenterKm(AREA.center, AREA.radiusKm * 1.1);
     map.fitBounds(bounds, {
       pitch: CONFIG.pitch,

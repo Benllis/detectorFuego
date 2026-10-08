@@ -1,0 +1,258 @@
+2026-10-01 17:07:41  OK      clima:actual                       server    64 filas · 2051 ms
+2026-10-01 17:07:45  OK      combustible:-70.9515,-33.7015,-70.3485,-33.1985 browser   49728 filas · 594 ms
+2026-10-01 17:08:59  OK      focos:VIIRS_NOAA20_NRT             server    3 filas, 3 nuevas · 715 ms
+2026-10-01 17:09:01  OK      focos:VIIRS_SNPP_NRT               server    3 filas, 3 nuevas · 1148 ms
+2026-10-01 17:09:07  OK      focos:VIIRS_NOAA21_NRT             server    1 filas, 1 nuevas · 5698 ms
+2026-10-01 17:09:08  OK      clima:actual                       server    36 filas · 1202 ms
+2026-10-01 17:09:09  ERROR   dmc:recientes                      server    55 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 17:15:24  OK      focos:VIIRS_NOAA20_NRT             server    0 filas, 0 nuevas · 5892 ms
+2026-10-01 17:15:24  OK      focos:VIIRS_SNPP_NRT               server    0 filas, 0 nuevas · 760 ms
+2026-10-01 17:15:25  OK      focos:VIIRS_NOAA21_NRT             server    0 filas, 0 nuevas · 722 ms
+2026-10-01 17:15:26  OK      focos:VIIRS_NOAA20_SP              server    0 filas, 0 nuevas · 916 ms
+2026-10-01 17:15:27  OK      focos:VIIRS_SNPP_SP                server    0 filas, 0 nuevas · 725 ms
+2026-10-01 17:15:30  OK      clima:historico                    server    1536 filas · 2943 ms
+2026-10-01 17:15:57  OK      clima:historico                    server    1536 filas · 1544 ms
+2026-10-01 17:16:01  OK      clima:historico                    server    864 filas · 1424 ms
+2026-10-01 17:16:01  OK      combustible:-71.7680,-33.2946,-71.2320,-32.8454 browser   26200 filas · 215 ms
+2026-10-01 17:16:02  OK      clima:historico                    server    864 filas · 1534 ms
+2026-10-01 17:16:04  OK      clima:historico                    server    864 filas · 1434 ms
+2026-10-01 17:16:05  OK      clima:historico                    server    864 filas · 1446 ms
+2026-10-01 17:16:07  OK      clima:historico                    server    864 filas · 1447 ms
+2026-10-01 17:16:13  ERROR   dmc:recientes                      server    63 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 17:24:07  ERROR   dmc:recientes                      server    62 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 17:31:13  ERROR   dmc:recientes                      server    71 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 17:39:08  ERROR   dmc:recientes                      server    63 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 17:39:08  OK      focos:VIIRS_NOAA20_NRT             server    3 filas, 0 nuevas · 733 ms
+2026-10-01 17:39:09  OK      focos:VIIRS_SNPP_NRT               server    3 filas, 0 nuevas · 719 ms
+2026-10-01 17:39:10  OK      focos:VIIRS_NOAA21_NRT             server    1 filas, 0 nuevas · 756 ms
+2026-10-01 17:39:11  OK      clima:actual                       server    36 filas · 794 ms
+2026-10-01 17:46:13  ERROR   dmc:recientes                      server    75 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 17:54:08  ERROR   dmc:recientes                      server    60 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 18:01:13  ERROR   dmc:recientes                      server    60 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 18:17:54  ERROR   focos:VIIRS_NOAA20_NRT             server    33 ms · red [descarga]
+                     ↳ URLError: <urlopen error [Errno 11001] getaddrinfo failed>
+2026-10-01 18:17:54  ERROR   clima:actual                       server    18 ms · red [descarga]
+                     ↳ URLError: <urlopen error [Errno 11001] getaddrinfo failed>
+2026-10-01 18:17:54  ERROR   dmc:recientes                      server    39 ms · red [descarga]
+                     ↳ URLError: <urlopen error [Errno 11001] getaddrinfo failed>
+2026-10-01 18:17:54  ERROR   focos:VIIRS_SNPP_NRT               server    10 ms · red [descarga]
+                     ↳ URLError: <urlopen error [Errno 11001] getaddrinfo failed>
+2026-10-01 18:17:54  ERROR   focos:VIIRS_NOAA21_NRT             server    11 ms · red [descarga]
+                     ↳ URLError: <urlopen error [Errno 11001] getaddrinfo failed>
+2026-10-01 18:17:54  ERROR   clima:actual                       server    11 ms · red [descarga]
+                     ↳ URLError: <urlopen error [Errno 11001] getaddrinfo failed>
+2026-10-01 18:17:54  ERROR   focos:VIIRS_NOAA20_NRT             server    23 ms · red [descarga]
+                     ↳ URLError: <urlopen error [Errno 11001] getaddrinfo failed>
+2026-10-01 18:17:54  ERROR   clima:actual                       server    23 ms · red [descarga]
+                     ↳ URLError: <urlopen error [Errno 11001] getaddrinfo failed>
+2026-10-01 18:17:54  ERROR   dmc:recientes                      server    18 ms · red [descarga]
+                     ↳ URLError: <urlopen error [Errno 11001] getaddrinfo failed>
+2026-10-01 18:17:54  ERROR   focos:VIIRS_SNPP_NRT               server    18 ms · red [descarga]
+                     ↳ URLError: <urlopen error [Errno 11001] getaddrinfo failed>
+2026-10-01 18:17:54  ERROR   focos:VIIRS_NOAA21_NRT             server    15 ms · red [descarga]
+                     ↳ URLError: <urlopen error [Errno 11001] getaddrinfo failed>
+2026-10-01 18:17:55  ERROR   clima:actual                       server    14 ms · red [descarga]
+                     ↳ URLError: <urlopen error [Errno 11001] getaddrinfo failed>
+2026-10-01 18:24:08  ERROR   dmc:recientes                      server    68 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 18:31:13  ERROR   dmc:recientes                      server    61 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 18:39:08  ERROR   dmc:recientes                      server    72 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 18:39:08  OK      focos:VIIRS_NOAA20_NRT             server    3 filas, 0 nuevas · 732 ms
+2026-10-01 18:39:09  OK      focos:VIIRS_SNPP_NRT               server    3 filas, 0 nuevas · 716 ms
+2026-10-01 18:39:15  OK      focos:VIIRS_NOAA21_NRT             server    1 filas, 0 nuevas · 5721 ms
+2026-10-01 18:39:16  OK      clima:actual                       server    36 filas · 1286 ms
+2026-10-01 18:46:13  ERROR   dmc:recientes                      server    60 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 18:54:08  ERROR   dmc:recientes                      server    64 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 19:01:13  ERROR   dmc:recientes                      server    64 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 19:09:08  ERROR   dmc:recientes                      server    66 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 19:09:09  OK      clima:actual                       server    64 filas · 1208 ms
+2026-10-01 19:16:13  ERROR   dmc:recientes                      server    113 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 19:16:14  OK      focos:VIIRS_NOAA20_NRT             server    3 filas, 0 nuevas · 715 ms
+2026-10-01 19:16:14  OK      focos:VIIRS_SNPP_NRT               server    3 filas, 0 nuevas · 761 ms
+2026-10-01 19:16:15  OK      focos:VIIRS_NOAA21_NRT             server    1 filas, 0 nuevas · 766 ms
+2026-10-01 19:16:17  OK      clima:actual                       server    36 filas · 1251 ms
+2026-10-01 19:24:08  ERROR   dmc:recientes                      server    57 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 19:31:13  ERROR   dmc:recientes                      server    57 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 19:39:08  ERROR   dmc:recientes                      server    60 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 19:46:13  ERROR   dmc:recientes                      server    71 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 19:54:08  ERROR   dmc:recientes                      server    65 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 20:01:13  ERROR   dmc:recientes                      server    58 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 20:09:08  ERROR   dmc:recientes                      server    58 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 20:09:08  OK      focos:VIIRS_NOAA20_NRT             server    3 filas, 0 nuevas · 727 ms
+2026-10-01 20:09:09  OK      clima:actual                       server    64 filas · 1286 ms
+2026-10-01 20:09:09  OK      focos:VIIRS_SNPP_NRT               server    3 filas, 0 nuevas · 675 ms
+2026-10-01 20:09:10  OK      focos:VIIRS_NOAA21_NRT             server    1 filas, 0 nuevas · 705 ms
+2026-10-01 20:09:11  OK      clima:actual                       server    36 filas · 1315 ms
+2026-10-01 20:16:13  ERROR   dmc:recientes                      server    63 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 20:24:08  ERROR   dmc:recientes                      server    101 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 20:31:13  ERROR   dmc:recientes                      server    62 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 20:39:08  ERROR   dmc:recientes                      server    68 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 20:46:13  ERROR   dmc:recientes                      server    86 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 20:46:14  OK      focos:VIIRS_NOAA20_NRT             server    3 filas, 0 nuevas · 674 ms
+2026-10-01 20:46:14  OK      focos:VIIRS_SNPP_NRT               server    3 filas, 0 nuevas · 768 ms
+2026-10-01 20:46:16  OK      focos:VIIRS_NOAA21_NRT             server    1 filas, 0 nuevas · 1766 ms
+2026-10-01 20:46:18  OK      clima:actual                       server    36 filas · 1486 ms
+2026-10-01 20:54:08  ERROR   dmc:recientes                      server    94 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 21:01:13  ERROR   dmc:recientes                      server    62 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 21:09:08  ERROR   dmc:recientes                      server    60 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 21:09:08  OK      clima:actual                       server    64 filas · 856 ms
+2026-10-01 21:16:13  ERROR   dmc:recientes                      server    69 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 21:24:08  ERROR   dmc:recientes                      server    78 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 21:31:13  ERROR   dmc:recientes                      server    56 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 21:39:08  ERROR   dmc:recientes                      server    72 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 21:39:08  OK      focos:VIIRS_NOAA20_NRT             server    0 filas, 0 nuevas · 718 ms
+2026-10-01 21:39:09  OK      focos:VIIRS_SNPP_NRT               server    0 filas, 0 nuevas · 726 ms
+2026-10-01 21:39:10  OK      focos:VIIRS_NOAA21_NRT             server    0 filas, 0 nuevas · 707 ms
+2026-10-01 21:54:08  ERROR   dmc:recientes                      server    66 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 22:09:08  ERROR   dmc:recientes                      server    109 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 22:09:09  OK      clima:actual                       server    64 filas · 1294 ms
+2026-10-01 22:24:08  ERROR   dmc:recientes                      server    59 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 22:39:08  ERROR   dmc:recientes                      server    66 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-01 22:39:08  OK      focos:VIIRS_NOAA20_NRT             server    0 filas, 0 nuevas · 777 ms
+2026-10-01 22:39:09  OK      focos:VIIRS_SNPP_NRT               server    0 filas, 0 nuevas · 739 ms
+2026-10-01 22:39:10  OK      focos:VIIRS_NOAA21_NRT             server    0 filas, 0 nuevas · 720 ms
+2026-10-02 20:39:02  OK      clima:actual                       server    64 filas · 748 ms
+2026-10-02 20:39:20  OK      focos:VIIRS_NOAA20_NRT             server    0 filas, 0 nuevas · 746 ms
+2026-10-02 20:39:21  OK      focos:VIIRS_SNPP_NRT               server    0 filas, 0 nuevas · 720 ms
+2026-10-02 20:39:22  OK      focos:VIIRS_NOAA21_NRT             server    0 filas, 0 nuevas · 753 ms
+2026-10-02 20:39:22  ERROR   dmc:recientes                      server    69 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-02 20:39:25  ERROR   dmc:recientes                      server    61 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-02 20:40:51  OK      focos:VIIRS_NOAA20_NRT             server    3 filas, 0 nuevas · 769 ms
+2026-10-02 20:40:52  OK      focos:VIIRS_SNPP_NRT               server    3 filas, 0 nuevas · 707 ms
+2026-10-02 20:40:52  OK      focos:VIIRS_NOAA21_NRT             server    1 filas, 0 nuevas · 749 ms
+2026-10-02 20:40:56  OK      clima:historico                    server    1536 filas · 2976 ms
+2026-10-02 20:40:57  OK      clima:historico                    server    864 filas · 1500 ms
+2026-10-02 20:42:54  ERROR   dmc:recientes                      server    83 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-02 20:54:23  ERROR   dmc:recientes                      server    71 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-02 20:57:55  ERROR   dmc:recientes                      server    69 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-02 21:09:23  ERROR   dmc:recientes                      server    88 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-02 21:09:24  OK      focos:VIIRS_NOAA20_NRT             server    0 filas, 0 nuevas · 678 ms
+2026-10-02 21:09:25  OK      focos:VIIRS_SNPP_NRT               server    0 filas, 0 nuevas · 729 ms
+2026-10-02 21:09:26  OK      focos:VIIRS_NOAA21_NRT             server    0 filas, 0 nuevas · 738 ms
+2026-10-02 21:12:55  ERROR   dmc:recientes                      server    74 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-02 21:24:23  ERROR   dmc:recientes                      server    73 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-02 21:27:55  ERROR   dmc:recientes                      server    80 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-02 21:39:24  ERROR   dmc:recientes                      server    63 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-02 21:39:24  OK      clima:actual                       server    64 filas · 1267 ms
+2026-10-02 21:42:09  OK      focos:VIIRS_NOAA20_NRT             server    0 filas, 0 nuevas · 714 ms
+2026-10-02 21:42:10  OK      focos:VIIRS_SNPP_NRT               server    0 filas, 0 nuevas · 708 ms
+2026-10-02 21:42:11  OK      focos:VIIRS_NOAA21_NRT             server    0 filas, 0 nuevas · 692 ms
+2026-10-02 21:42:11  ERROR   dmc:recientes                      server    74 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-02 21:54:23  ERROR   dmc:recientes                      server    94 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-02 21:57:12  ERROR   dmc:recientes                      server    65 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-02 22:09:23  ERROR   dmc:recientes                      server    66 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-02 22:12:12  ERROR   dmc:recientes                      server    109 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-02 22:12:13  OK      focos:VIIRS_NOAA20_NRT             server    0 filas, 0 nuevas · 699 ms
+2026-10-02 22:12:13  OK      focos:VIIRS_SNPP_NRT               server    0 filas, 0 nuevas · 722 ms
+2026-10-02 22:12:14  OK      focos:VIIRS_NOAA21_NRT             server    0 filas, 0 nuevas · 662 ms
+2026-10-06 16:56:08  OK      clima:actual                       server    64 filas · 1724 ms
+2026-10-06 16:57:10  OK      focos:VIIRS_NOAA20_NRT             server    0 filas, 0 nuevas · 776 ms
+2026-10-06 16:57:10  OK      focos:VIIRS_SNPP_NRT               server    0 filas, 0 nuevas · 698 ms
+2026-10-06 16:57:11  OK      focos:VIIRS_NOAA21_NRT             server    0 filas, 0 nuevas · 744 ms
+2026-10-06 16:57:11  ERROR   dmc:recientes                      server    59 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-06 17:01:44  ERROR   dmc:recientes                      server    69 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-06 17:03:11  ERROR   dmc:recientes                      server    72 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-06 17:04:13  ERROR   dmc:recientes                      server    71 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-06 17:07:32  ERROR   dmc:recientes                      server    65 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-06 17:22:33  ERROR   dmc:recientes                      server    65 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-06 17:37:33  ERROR   dmc:recientes                      server    78 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-06 17:37:33  OK      focos:VIIRS_NOAA20_NRT             server    0 filas, 0 nuevas · 746 ms
+2026-10-06 17:37:34  OK      focos:VIIRS_SNPP_NRT               server    0 filas, 0 nuevas · 764 ms
+2026-10-06 17:37:35  OK      focos:VIIRS_NOAA21_NRT             server    0 filas, 0 nuevas · 778 ms
+2026-10-06 17:52:33  ERROR   dmc:recientes                      server    86 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-06 18:07:33  ERROR   dmc:recientes                      server    78 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-06 18:07:34  OK      clima:actual                       server    64 filas · 836 ms
+2026-10-06 18:22:33  ERROR   dmc:recientes                      server    162 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-06 18:37:33  ERROR   dmc:recientes                      server    160 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-06 18:37:34  OK      focos:VIIRS_NOAA20_NRT             server    0 filas, 0 nuevas · 836 ms
+2026-10-06 18:37:34  OK      focos:VIIRS_SNPP_NRT               server    0 filas, 0 nuevas · 788 ms
+2026-10-06 18:37:35  OK      focos:VIIRS_NOAA21_NRT             server    0 filas, 0 nuevas · 765 ms
+2026-10-06 18:52:33  ERROR   dmc:recientes                      server    126 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-06 19:07:33  ERROR   dmc:recientes                      server    78 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-06 19:07:33  OK      clima:actual                       server    64 filas · 799 ms
+2026-10-08 10:00:16  OK      clima:actual                       server    64 filas · 12296 ms
+2026-10-08 10:00:19  OK      clima:actual                       server    64 filas · 11010 ms
+2026-10-08 10:01:12  OK      focos:VIIRS_NOAA20_NRT             server    0 filas, 0 nuevas · 1705 ms
+2026-10-08 10:01:14  OK      focos:VIIRS_SNPP_NRT               server    0 filas, 0 nuevas · 796 ms
+2026-10-08 10:01:14  OK      focos:VIIRS_NOAA21_NRT             server    0 filas, 0 nuevas · 719 ms
+2026-10-08 10:01:15  ERROR   dmc:recientes                      server    56 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-08 10:01:30  ERROR   dmc:recientes                      server    79 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-08 10:16:16  ERROR   dmc:recientes                      server    65 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-08 10:16:31  ERROR   dmc:recientes                      server    69 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-08 10:31:16  ERROR   dmc:recientes                      server    63 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta
+2026-10-08 10:31:16  OK      focos:VIIRS_NOAA20_NRT             server    0 filas, 0 nuevas · 683 ms
+2026-10-08 10:31:17  OK      focos:VIIRS_SNPP_NRT               server    0 filas, 0 nuevas · 699 ms
+2026-10-08 10:31:18  OK      focos:VIIRS_NOAA21_NRT             server    0 filas, 0 nuevas · 833 ms
+2026-10-08 10:31:30  ERROR   dmc:recientes                      server    69 ms · credenciales [descarga]
+                     ↳ PermissionError: DMC respondió: Este servicio ha sido bloqueda para el usuario que consulta

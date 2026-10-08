@@ -1,25 +1,21 @@
 // ============================================================
 // FireWatch · Mapa 3D — capa de viento animada
 //
-// Técnica: un canvas transparente flota sobre el mapa. Cientos de
-// partículas se mueven según el vector de viento interpolado en su
-// posición (WeatherGrid.sample), dejando una estela que se desvanece.
-// Color = velocidad del viento (azul=calma → rojo=fuerte).
-// Es la misma idea de fondo que usan windy.com y earth.nullschool.net.
-//
-// La velocidad de movimiento en pantalla está exagerada a propósito
-// (ver CONFIG.windVisualSpeedFactor) — el viento real es demasiado
-// lento para verse fluir a esta escala de mapa en tiempo real.
+// Un canvas transparente flota sobre el mapa. Cientos de partículas se
+// mueven según el vector de viento interpolado en su posición
+// (WeatherGrid.sample), dejando una estela que se desvanece. Color =
+// velocidad del viento (azul=calma → rojo=fuerte). Misma idea que
+// windy.com / earth.nullschool.net — muestra DIRECCIÓN real del viento.
 // ============================================================
 
 function clampWL(x, min, max) { return Math.min(max, Math.max(min, x)); }
 
 function windSpeedToColor(speedKmh) {
   const stops = [
-    { v: 0, c: [59, 130, 246] },   // calma — azul
-    { v: 15, c: [47, 174, 109] },  // suave — verde
-    { v: 30, c: [232, 185, 61] },  // moderado — amarillo
-    { v: 50, c: [229, 72, 77] },   // fuerte — rojo
+    { v: 0, c: [59, 130, 246] },
+    { v: 15, c: [47, 174, 109] },
+    { v: 30, c: [232, 185, 61] },
+    { v: 50, c: [229, 72, 77] },
   ];
   let a = stops[0], b = stops[stops.length - 1];
   for (let i = 0; i < stops.length - 1; i++) {
@@ -58,8 +54,6 @@ class WindParticleLayer {
   }
 
   _resize() {
-    // Mismo motivo que en heat-layer.js: usar píxeles CSS, no resolución
-    // física, para que coincida con el espacio de coordenadas de map.project().
     const c = this.map.getCanvas();
     this.canvas.width = c.clientWidth;
     this.canvas.height = c.clientHeight;
@@ -106,7 +100,6 @@ class WindParticleLayer {
     if (!this.running) return;
     const ctx = this.ctx;
 
-    // Desvanece el trazo anterior en vez de limpiar todo (efecto de estela)
     ctx.globalCompositeOperation = 'destination-in';
     ctx.fillStyle = 'rgba(0,0,0,0.90)';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -118,8 +111,8 @@ class WindParticleLayer {
       const w = this.grid.sample(p.lat, p.lon);
       if (!w) { Object.assign(p, this._randomPoint()); continue; }
 
-      const bearing = ((w.dirDeg + 180) % 360) * Math.PI / 180; // hacia dónde SOPLA
-      const step = 0.00022 * CONFIG.windVisualSpeedFactor * (0.35 + w.speed / 35);
+      const bearing = ((w.dirDeg + 180) % 360) * Math.PI / 180;
+      const step = 0.00022 * (0.35 + w.speed / 35);
       const dLat = Math.cos(bearing) * step;
       const dLon = Math.sin(bearing) * step / Math.max(0.15, Math.cos(p.lat * Math.PI / 180));
 

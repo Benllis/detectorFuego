@@ -1,139 +1,217 @@
 // ============================================================
 // FireWatch · Mapa 3D — capa de cobertura vegetal / riesgo de combustible
 //
-// v3 — migrado de Terrascope (WMS, servidor caído/poco confiable) a
-// Microsoft Planetary Computer (Azure, mismo dataset ESA WorldCover).
+// ESA WorldCover vía Microsoft Planetary Computer (Azure). Flujo:
+//   1. Búsqueda STAC de qué tile (3x3 grados) cubre el área.
+//   2. Imagen del área EXACTA (endpoint bbox, 1280 px ≈ 45 m/px) con la
+//      paleta oficial de ESA. Si ese endpoint falla, se recorta la vista
+//      previa del tile completo (más gruesa, ~160 m/px).
+//   3. Se RECOLOREA en el navegador: cada clase de ESA pasa a un color de
+//      riesgo de combustible (escala única de rojo oscuro a verde claro).
+//      Lo no inflamable (urbano, agua, suelo desnudo) queda casi
+//      transparente para que se lea el mapa base.
 //
-// A diferencia de un WMS clásico, Planetary Computer organiza los datos
-// como un catálogo STAC dividido en tiles de 3x3 grados. El flujo es:
-//   1. Se busca en el catálogo STAC qué tile de WorldCover cubre el área
-//      de interés (POST a /api/stac/v1/search).
-//   2. Se pide la imagen ya renderizada de ese tile completo, con la
-//      paleta de colores OFICIAL de ESA aplicada automáticamente
-//      (colormap_name=esa-worldcover).
-//   3. Se recorta esa imagen client-side (canvas) solo al área de interés
-//      real (~30km, igual que la capa de calor) — el tile completo cubre
-//      ~330km de lado y mostrarlo entero se ve desproporcionado frente al
-//      resto de las capas.
+// v6: la clasificación se guarda como grilla consultable (FuelGrid, fuel-grid.js):
+//     clase, propensión de combustible y resumen por celda de 250 m o por radio.
+// v5.1: filtro de moda 3x3 (sin sal y pimienta), colores más suaves, por
+// debajo del mapa de calor y apagada por defecto (es una capa de referencia).
+// v5 — legible: sin desenfoque (el dato es categórico y el blur lo
+// convertía en una mancha), imagen más nítida y colores por riesgo (antes
+// el rojo de ESA marcaba "urbano", que se confundía con riesgo alto).
 //
 // Fuente: ESA WorldCover (Copernicus Sentinel-1 + Sentinel-2, 10m,
-// CC BY 4.0) vía Microsoft Planetary Computer, sin API key para este
-// nivel de acceso.
+// CC BY 4.0), año 2021. Sin API key. Es una clasificación de cobertura,
+// no una medición de combustible: el riesgo por clase es una regla simple.
 // ============================================================
 
 const PC_STAC_SEARCH_URL = 'https://planetarycomputer.microsoft.com/api/stac/v1/search';
 const PC_PREVIEW_BASE_URL = 'https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png';
+const PC_BBOX_BASE_URL = 'https://planetarycomputer.microsoft.com/api/data/v1/item/bbox';
+const FUEL_IMAGE_PX = 1280;
 
-// Clasificación ESA (11 clases oficiales) -> interpretación de riesgo de
-// combustible. Solo se listan acá las relevantes para la zona central de
-// Chile; el resto (nieve, manglar, musgo) prácticamente no aplican.
-const WORLDCOVER_LEGEND = [
-  { color: '#006400', label: 'Bosque / arbolado', risk: 'Alto' },
-  { color: '#ffbb22', label: 'Matorral', risk: 'Alto' },
-  { color: '#ffff4c', label: 'Pastizal', risk: 'Medio' },
-  { color: '#f096ff', label: 'Cultivo agrícola', risk: 'Medio-bajo' },
-  { color: '#fa0000', label: 'Urbano / construido', risk: 'Bajo' },
-  { color: '#b4b4b4', label: 'Suelo desnudo / vegetación escasa', risk: 'Bajo' },
-  { color: '#0064c8', label: 'Cuerpos de agua', risk: 'Nulo' },
-];
+/**
+ * Clasifica un bitmap de ESA: índice de clase por pixel (WORLDCOVER_CLASSES, en fuel-grid.js),
+ * con un filtro de moda 3x3 que quita el "sal y pimienta" sin inventar clases.
+ */
+function classifyWorldCover(bitmap, sx, sy, sw, sh, outW, outH) {
+  const canvas = document.createElement('canvas');
+  canvas.width = outW; canvas.height = outH;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = false; // categórico: nunca mezclar clases
+  ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, outW, outH);
+  const d = ctx.getImageData(0, 0, outW, outH).data;
+
+  const cache = new Map();
+  const cls = new Uint8Array(outW * outH).fill(FUEL_NO_DATA);
+  for (let p = 0, i = 0; p < cls.length; p++, i += 4) {
+    if (d[i + 3] === 0) continue;
+    const key = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2];
+    let k = cache.get(key);
+    if (k === undefined) {
+      let bd = Infinity; k = 0;
+      WORLDCOVER_CLASSES.forEach((c, n) => {
+        const dist = (c.esa[0] - d[i]) ** 2 + (c.esa[1] - d[i + 1]) ** 2 + (c.esa[2] - d[i + 2]) ** 2;
+        if (dist < bd) { bd = dist; k = n; }
+      });
+      cache.set(key, k);
+    }
+    cls[p] = k;
+  }
+
+  const out = new Uint8Array(cls);
+  const counts = new Uint8Array(WORLDCOVER_CLASSES.length);
+  for (let y = 1; y < outH - 1; y++) {
+    for (let x = 1; x < outW - 1; x++) {
+      counts.fill(0);
+      let best = FUEL_NO_DATA, bc = 0;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const k = cls[(y + dy) * outW + x + dx];
+          if (k === FUEL_NO_DATA) continue;
+          if (++counts[k] > bc) { bc = counts[k]; best = k; }
+        }
+      }
+      if (best !== FUEL_NO_DATA && bc >= 3) out[y * outW + x] = best;
+    }
+  }
+  return { cls: out, w: outW, h: outH };
+}
+
+/** Dibuja la grilla como imagen a colores de riesgo (para la capa del mapa). */
+function paintFuelGrid(grid) {
+  const canvas = document.createElement('canvas');
+  canvas.width = grid.w; canvas.height = grid.h;
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(grid.w, grid.h);
+  for (let p = 0, i = 0; p < grid.cls.length; p++, i += 4) {
+    const k = grid.cls[p];
+    if (k === FUEL_NO_DATA) continue;
+    const c = WORLDCOVER_CLASSES[k].rgba;
+    img.data[i] = c[0]; img.data[i + 1] = c[1]; img.data[i + 2] = c[2]; img.data[i + 3] = c[3];
+  }
+  ctx.putImageData(img, 0, 0);
+  return canvas;
+}
+
+async function fetchWorldCoverBitmap(item, west, south, east, north) {
+  // 1) Área exacta, alta resolución
+  try {
+    const url = `${PC_BBOX_BASE_URL}/${west},${south},${east},${north}/${FUEL_IMAGE_PX}x${FUEL_IMAGE_PX}.png` +
+      `?collection=esa-worldcover&item=${item.id}&assets=map&colormap_name=esa-worldcover`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const bitmap = await createImageBitmap(await res.blob());
+    return { bitmap, crop: [0, 0, bitmap.width, bitmap.height], detail: 'alta resolución' };
+  } catch (err) {
+    console.warn('[FuelLayer] Endpoint bbox falló, se usa la vista previa del tile:', err.message);
+  }
+
+  // 2) Respaldo: vista previa del tile completo, recortada
+  const previewUrl = `${PC_PREVIEW_BASE_URL}?collection=esa-worldcover&item=${item.id}` +
+    `&assets=map&colormap_name=esa-worldcover&format=png&width=2048&height=2048&max_size=2048`;
+  const imgRes = await fetch(previewUrl);
+  if (!imgRes.ok) throw new Error(`No se pudo descargar la imagen (HTTP ${imgRes.status})`);
+  const bitmap = await createImageBitmap(await imgRes.blob());
+  const [iWest, iSouth, iEast, iNorth] = item.bbox;
+  const px0 = Math.max(0, Math.round((west - iWest) / (iEast - iWest) * bitmap.width));
+  const px1 = Math.min(bitmap.width, Math.round((east - iWest) / (iEast - iWest) * bitmap.width));
+  const py0 = Math.max(0, Math.round((iNorth - north) / (iNorth - iSouth) * bitmap.height));
+  const py1 = Math.min(bitmap.height, Math.round((iNorth - south) / (iNorth - iSouth) * bitmap.height));
+  return { bitmap, crop: [px0, py0, Math.max(1, px1 - px0), Math.max(1, py1 - py0)], detail: 'resolución reducida' };
+}
+
+// ---------- grillas de combustible cargadas (una por área) ----------
+const FUEL_GRID_PROMISES = new Map(); // clave de bounds -> Promise<FuelGrid>
+const FUEL_GRIDS_READY = [];          // FuelGrid ya cargadas
+
+/** Grilla que contiene el punto (la más reciente si hay varias), o null. */
+function fuelGridFor(lat, lon) {
+  for (let i = FUEL_GRIDS_READY.length - 1; i >= 0; i--) {
+    if (FUEL_GRIDS_READY[i].contains(lat, lon)) return FUEL_GRIDS_READY[i];
+  }
+  return null;
+}
+
+/**
+ * Guarda la grilla en el archivo histórico (SQLite, vía server.py) una sola vez por área.
+ * Sin proxy no hace nada. Nunca lanza: el archivo es un extra, no debe romper el mapa.
+ */
+async function archiveFuelGrid(grid) {
+  if (!FW.proxy || !FW.archive) return;
+  try {
+    const key = grid.areaKey();
+    const has = await (await fetch(`/api/store/has?key=${encodeURIComponent(key)}`)).json();
+    if (has.exists) return;
+    const res = await fetch('/api/store/fuelgrid', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(grid.toArchivePayload()),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const out = await res.json();
+    console.info(`[Archivo] grilla de combustible guardada: ${out.cells} celdas`);
+    refreshArchiveStatus();
+  } catch (err) {
+    console.warn('[Archivo] no se pudo guardar la grilla de combustible:', err);
+  }
+}
+
+/** Descarga y clasifica WorldCover para un área. `bounds` = [[oeste,sur],[este,norte]]. */
+function loadFuelGrid(bounds) {
+  const key = bounds.flat().map((x) => x.toFixed(3)).join(',');
+  if (FUEL_GRID_PROMISES.has(key)) return FUEL_GRID_PROMISES.get(key);
+  const p = (async () => {
+    const [west, south] = bounds[0];
+    const [east, north] = bounds[1];
+    const searchRes = await fetch(PC_STAC_SEARCH_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ collections: ['esa-worldcover'], bbox: [west, south, east, north], limit: 1 }),
+    });
+    if (!searchRes.ok) throw new Error(`Búsqueda STAC falló (HTTP ${searchRes.status})`);
+    const item = ((await searchRes.json()).features || [])[0];
+    if (!item) throw new Error('No se encontró ningún tile de WorldCover para esta zona.');
+
+    const { bitmap, crop, detail } = await fetchWorldCoverBitmap(item, west, south, east, north);
+    const c = classifyWorldCover(bitmap, crop[0], crop[1], crop[2], crop[3], crop[2], crop[3]);
+    const grid = new FuelGrid(c.cls, c.w, c.h, bounds, { detail });
+    FUEL_GRIDS_READY.push(grid);
+    if (detail !== 'resolución reducida') setTimeout(() => archiveFuelGrid(grid), 1500); // no frena el mapa
+    return grid;
+  })();
+  FUEL_GRID_PROMISES.set(key, p);
+  p.catch(() => FUEL_GRID_PROMISES.delete(key)); // permite reintentar
+  return p;
+}
 
 async function addFuelCoverLayer(map, area) {
   if (map.getSource('worldcover-image')) return; // ya agregada
 
-  const bounds = boundsFromCenterKm(area.center, area.radiusKm * 1.1); // [[west,south],[east,north]]
+  const bounds = boundsFromCenterKm(area.center, area.radiusKm);
   const [west, south] = bounds[0];
   const [east, north] = bounds[1];
 
   try {
-    // 1. Buscar qué tile de WorldCover cubre esta área
-    const searchRes = await fetch(PC_STAC_SEARCH_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        collections: ['esa-worldcover'],
-        bbox: [west, south, east, north],
-        limit: 1,
-      }),
-    });
-    if (!searchRes.ok) throw new Error(`Búsqueda STAC falló (HTTP ${searchRes.status})`);
-    const searchData = await searchRes.json();
-    const item = searchData.features && searchData.features[0];
-    if (!item) throw new Error('No se encontró ningún tile de WorldCover para esta zona.');
-
-    const itemBbox = item.bbox; // [west, south, east, north] del tile completo (~3x3 grados)
-
-    // 2. Pedir la imagen ya renderizada de ese tile, con la paleta oficial de ESA.
-    // Se pide en buena resolución porque después se recorta solo la zona de
-    // interés (mucho más chica que el tile completo) — si se pidiera a baja
-    // resolución, el recorte final se vería borroso/pixelado.
-    const previewUrl = `${PC_PREVIEW_BASE_URL}?collection=esa-worldcover&item=${item.id}` +
-      `&assets=map&colormap_name=esa-worldcover&format=png&width=2048&height=2048&max_size=2048`;
-
-    // 3. Recortar client-side solo el área de interés (mismo tamaño que la
-    // capa de calor), en vez de mostrar el tile completo de ~330 km.
-    // Se recorta con canvas a partir de la imagen ya descargada — sin pedir
-    // nada nuevo a Planetary Computer, sin arriesgar otro endpoint distinto.
-    const imgRes = await fetch(previewUrl);
-    if (!imgRes.ok) throw new Error(`No se pudo descargar la imagen (HTTP ${imgRes.status})`);
-    const blob = await imgRes.blob();
-    const bitmap = await createImageBitmap(blob);
-
-    const [iWest, iSouth, iEast, iNorth] = itemBbox;
-    const px0 = Math.max(0, Math.round((west - iWest) / (iEast - iWest) * bitmap.width));
-    const px1 = Math.min(bitmap.width, Math.round((east - iWest) / (iEast - iWest) * bitmap.width));
-    const py0 = Math.max(0, Math.round((iNorth - north) / (iNorth - iSouth) * bitmap.height));
-    const py1 = Math.min(bitmap.height, Math.round((iNorth - south) / (iNorth - iSouth) * bitmap.height));
-    const cropW = Math.max(1, px1 - px0);
-    const cropH = Math.max(1, py1 - py0);
-
-    const canvas = document.createElement('canvas');
-    canvas.width = cropW;
-    canvas.height = cropH;
-    const ctx = canvas.getContext('2d');
-    // Desenfoque suave: la cobertura vegetal es un dato categórico (cada
-    // pixel es "esto ES bosque" o "esto ES urbano", sin términos medios),
-    // así que se ve como mosaico de bloques sólidos. El blur lo hace sentir
-    // más como una capa continua/suave, en la línea del mapa de calor,
-    // aunque el dato de fondo siga siendo categórico.
-    ctx.filter = 'blur(6px)';
-    ctx.drawImage(bitmap, px0, py0, cropW, cropH, 0, 0, cropW, cropH);
-    ctx.filter = 'none';
-
-    // Recorte circular, para que coincida con el borde punteado real de
-    // cobertura. El recorte de imagen (cropW/cropH) se pidió con un margen
-    // extra (radiusKm*1.1) para que el blur no corte feo en los bordes —
-    // por eso el círculo real es más chico que el canvas completo.
-    const circleRx = (cropW / 2) / 1.1;
-    const circleRy = (cropH / 2) / 1.1;
-    ctx.globalCompositeOperation = 'destination-in';
-    ctx.beginPath();
-    ctx.ellipse(cropW / 2, cropH / 2, circleRx, circleRy, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalCompositeOperation = 'source-over';
-
-    const croppedUrl = canvas.toDataURL();
+    const grid = await loadFuelGrid(bounds);
+    if (map.getSource('worldcover-image')) return;
 
     map.addSource('worldcover-image', {
       type: 'image',
-      url: croppedUrl,
-      coordinates: [
-        [west, north], // NO
-        [east, north], // NE
-        [east, south], // SE
-        [west, south], // SO
-      ],
+      url: paintFuelGrid(grid).toDataURL(),
+      coordinates: [[west, north], [east, north], [east, south], [west, south]],
     });
+    // Orden (de abajo hacia arriba): vegetación < mapa de calor < zonas locales < focos.
+    const before = map.getLayer('temp-heat-layer') ? 'temp-heat-layer'
+      : (map.getLayer('fire-pixels-glow') ? 'fire-pixels-glow' : undefined);
     map.addLayer({
-      id: 'worldcover-layer',
-      type: 'raster',
-      source: 'worldcover-image',
-      paint: { 'raster-opacity': 0.4 },
-    });
+      id: 'worldcover-layer', type: 'raster', source: 'worldcover-image',
+      paint: { 'raster-opacity': 0.6, 'raster-fade-duration': 0 },
+    }, before);
+    const toggle = document.getElementById('toggle-fuel');
+    if (toggle && !toggle.checked) setFuelCoverVisible(map, false);
+    reportSource('fuel', 'ok', `ESA WorldCover 2021 · ${grid.meta.detail} · grilla de celdas de ${FUEL_CELL_M} m`);
+    document.dispatchEvent(new CustomEvent('fuelgrid', { detail: grid }));
   } catch (err) {
-    // Si esta capa externa falla, no debe romper el resto del mapa ni
-    // fallar en silencio — se avisa en la interfaz y el resto (viento,
-    // temperatura, cámaras) sigue funcionando igual.
     console.warn('[FuelLayer] No se pudo cargar ESA WorldCover (Planetary Computer):', err);
+    reportSource('fuel', 'error', err.message);
     const el = document.getElementById('status-text');
     if (el) {
       el.textContent = '⚠️ No se pudo cargar la cobertura vegetal: ' + err.message;

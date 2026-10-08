@@ -1,128 +1,166 @@
 # FireWatch — Mapa 3D
 
-Subproyecto nuevo, independiente de `firewatch-project-web/`, `-desktop/` y
-`-camara/`. Es la base real del mapa 3D: calles/edificios reales, terreno 3D
-real, viento y temperatura en vivo. No incluye todavía la simulación de
-propagación de incendio — eso queda para la siguiente iteración, una vez que
-esta base esté validada.
+Subproyecto independiente de `firewatch-project-web/`, `-desktop/` y
+`-camara/`. Es la base real del mapa 3D: calles y edificios reales,
+terreno 3D real, viento animado con dirección real, temperatura, humedad,
+cobertura vegetal, fuentes de agua, grifos, estaciones de bomberos,
+focos de calor satelitales y estaciones meteorológicas oficiales —
+centrado en el Gran Santiago. No incluye todavía la simulación de
+propagación de incendio.
 
 ## Cómo correrlo
 
-No requiere build ni instalación. Desde esta carpeta:
+Solo hace falta Python 3.8+ (sin instalar paquetes). Desde esta carpeta:
 
 ```bash
-python -m http.server 8080
+python server.py
 ```
 
-Abrir `http://localhost:8080` en el navegador. Todo corre 100% en el cliente
-(HTML + JS vanilla), sin backend propio — cada capa consulta directamente a
-servicios externos gratuitos.
+Abrir `http://localhost:8080`. `server.py` reemplaza a
+`python -m http.server`: sirve el mapa y además hace de **proxy local con
+caché** para las fuentes que piden credenciales.
+
+### Credenciales (opcional pero recomendado)
+
+1. Copiar `.env.example` como `.env` (está en `.gitignore`, no se sube).
+2. Completar:
+   - `FIRMS_MAP_KEY` — gratis: <https://firms.modaps.eosdis.nasa.gov/api/map_key/>
+   - `TOMTOM_KEY` — opcional (tráfico en vivo y rutas con tráfico), gratis y sin tarjeta: <https://developer.tomtom.com>
+   - `DMC_USUARIO` + `DMC_TOKEN` — gratis, registro en el portal de la
+     Dirección Meteorológica de Chile (<https://climatologia.meteochile.gob.cl>,
+     sección de web services).
+
+Sin `.env` el mapa igual funciona: se pierden los focos FIRMS y las
+mediciones de la DMC (las 11 estaciones del área se muestran en gris).
+Sin el proxy (por ejemplo si se sirve como sitio estático) pasa lo mismo.
+Ninguna key va en el código del navegador.
 
 ## Qué es real y qué no
 
 | Elemento | Estado |
 |---|---|
-| Mapa (calles, edificios) | **Real** — OpenStreetMap vía OpenFreeMap, sin API key |
-| Terreno 3D (elevación) | **Real** — Mapterhorn, datos de elevación reales |
-| Viento (velocidad + dirección) | **Real, en vivo** — Open-Meteo, se actualiza cada 10 min o al presionar "Actualizar" |
-| Temperatura / mapa de calor | **Real, en vivo** — Open-Meteo, misma grilla que el viento |
-| Sensor de cámara en el mapa | **Real** — coordenadas y azimut tomados de `firewatch-project-camara/camera_config.json`, soporta varias cámaras (`CONFIG.cameras`) |
-| Cobertura vegetal (riesgo de combustible) | **Real** — ESA WorldCover (satélites Sentinel-1/2, 10m, CC BY 4.0), vía Microsoft Planetary Computer, sin API key ni contacto institucional |
-| Ubicación del centro del mapa | **Fija por ahora** — hoy apunta a las coordenadas de esa cámara. En producción debería venir del backend (última alerta activa), no estar hardcodeada en `config.js` |
-| Velocidad visual de las partículas de viento | **Exagerada a propósito** — el viento real (15-30 km/h) es demasiado lento para verse fluir en pantalla a esta escala. Ver `CONFIG.windVisualSpeedFactor` |
+| Mapa (calles, edificios) | **Real** — OpenStreetMap vía OpenFreeMap |
+| Terreno 3D | **Real** — Mapterhorn |
+| Viento, temperatura, humedad | **Real, en vivo** — Open-Meteo (modelo, no medición instrumental). 1 petición para los 64 puntos, refresco cada 60 min |
+| Estaciones DMC (Red EMA) | **Real, medición instrumental** — 11 estaciones en el área. Requiere token (gratis). Se compara contra el modelo (panel "Modelo vs. DMC") |
+| Mapa de calor | **Real, en vivo** — Open-Meteo. Tres modos: **Riesgo de incendio** (índice 0-100 propio: humedad, temperatura, viento; escala absoluta, ver METODOLOGIA §5b), **Temperatura real** (escala relativa) y **Temperatura ajustada a 600 m** (quita el efecto de la altura, §5d) |
+| Zona de calor local (2.5 km) | **Real** — se genera sola alrededor de cada foco NASA FIRMS; si no hay focos, no aparece nada (normal). También se genera en replay / día anterior, con el clima histórico de la hora del foco |
+| Sensor(es) de cámara | **Real** — `camera_config.json` |
+| Cobertura vegetal | **Real** — ESA WorldCover vía Planetary Computer (año 2021). Imagen recoloreada por riesgo por clase (matorral > bosque > pastizal > cultivo), todavía no un dato consultable por celda |
+| Fuentes de agua / grifos / estaciones de bomberos | **Real** — OpenStreetMap vía Overpass (crowdsourced, cobertura desigual). Ríos con trazado real. Caché de 24 h |
+| Focos de calor satelitales | **Real** — NASA FIRMS (VIIRS NOAA-20, NOAA-21 y Suomi-NPP), vía el proxy. Incluye **replay** de incendios históricos y **"ayer"**, con el clima real de ese momento (Open-Meteo archivo, METODOLOGIA §5c) |
+| Área de cobertura | **Fija** — Gran Santiago (28 km), no se mueve al navegar |
+
+El panel **"Estado de las fuentes"** (arriba a la derecha) muestra, para
+cada fuente, si cargó, cuántos datos trajo, si vienen de caché o si son
+un dato viejo porque el servicio estaba caído.
+
+## Documentación
+
+- [`METODOLOGIA.md`](./METODOLOGIA.md) — cómo se obtiene el dato de cada
+  API (endpoint, parámetros, qué devuelve, frecuencia, licencia y
+  limitaciones) y resultados de las pruebas en vivo del 28-09-2026.
+  Pensado para la memoria y para responder a la comisión.
+
+## Decisiones de diseño importantes
+
+- **Proxy local en vez de keys en el navegador**: el token de la DMC no
+  puede ir en un JS que corre en el cliente. El mismo proxy cachea
+  Open-Meteo (límite gratuito de 10.000 llamadas/día por IP) y FIRMS.
+  Pendiente si se necesita publicarlo online: migrar `server.py` a un
+  serverless gratuito (p. ej. Cloudflare Workers) con los mismos
+  endpoints `/api/*`.
+- **Open-Meteo en una sola petición** (64 puntos, verificado en vivo) y
+  refresco cada 60 min, porque el modelo se recalcula cada hora.
+- **Overpass se consulta capa por capa**, con reintento, tope de tiempo,
+  mirror de respaldo (`maps.mail.ru`; `overpass.kumi.systems` y
+  `overpass.private.coffee` no respondieron el 28-09-2026) y caché de 24 h
+  (`overpass-utils.js`).
+- **Área fija en Santiago, no "todo Chile"**: se probó con tiles de
+  OpenWeatherMap y se descartó porque esos tiles no muestran dirección de
+  viento (bitácora, Sesión 07).
+- **Mapa de calor con borde suave**: llena el cuadrado del área pero
+  desvanece los bordes (sin esquinas duras). La cobertura vegetal se pide
+  para el área exacta, recoloreada por riesgo y sin desenfoque.
+- **Focos FIRMS y zona de calor local, un solo interruptor**: la zona
+  (relleno amarillo→rojo, contorno y rótulo) se genera alrededor de cada
+  foco y se enciende/apaga junto con los puntos.
 
 ## Estructura
 
 ```
 firewatch-project-mapa/
-├── index.html          → punto de entrada
-├── css/style.css        → estilos (reusa la paleta de firewatch-project-web)
+├── index.html
+├── server.py                  → servidor local + proxy con caché (DMC, FIRMS, Open-Meteo)
+├── storage.py                 → archivo histórico en SQLite (data/firewatch.db, fuera de git)
+├── .env.example               → plantilla de credenciales (copiar a .env)
+├── css/style.css
+├── METODOLOGIA.md
+├── tools/recolector.py        → guarda clima/focos/estaciones sin el mapa abierto (`--una-vez`, `--cada 60`, `--terreno`, `--stats`, `--resumen`, `--log`)
+├── tools/historico.py         → respaldo histórico: focos FIRMS pasados, eventos de incendio y clima (`--historico`, `--eventos`)
+├── tools/trafico.py           → foto del tráfico (tiles vectoriales de TomTom) guardada en SQLite (`--trafico`, `--trafico-cada`, `--trafico-resumen`)
+├── tests/test_trafico.py      → pruebas del tráfico guardado (`python tests/test_trafico.py`; usa `tests/mvt_encode.py`)
+├── tests/test_historico.py    → pruebas del histórico (`python tests/test_historico.py`)
+├── tests/test_storage.py      → archivo histórico y recolector (`python tests/test_storage.py`)
+├── tools/calibrar_indice.js   → reproduce la comprobación del índice con incendios reales (Node 18+)
+├── tests/routing.test.js      → lógica pura de rutas (`node tests/routing.test.js`)
+├── tests/test_route.py        → endpoint /api/route del proxy (`python tests/test_route.py`)
+├── tests/fuel-grid.test.js    → pruebas de la grilla de combustible y pendiente (`node tests/fuel-grid.test.js`)
 └── js/
-    ├── config.js         → TODO lo ajustable: centro, estilo de mapa, tamaño de grilla, etc.
-    ├── weather-grid.js    → construye la grilla, consulta Open-Meteo, interpola viento/temp
-    ├── map-init.js        → arranca MapLibre, terreno 3D, marcador de cámara
-    ├── wind-layer.js       → partículas de viento animadas (canvas sobre el mapa)
-    ├── heat-layer.js       → capa de calor nativa de MapLibre, alimentada con temperatura real
-    └── main.js             → conecta todo + controles de la interfaz
+    ├── config.js              → cámaras, área, estilo de mapa, satélites y presets de replay
+    ├── api.js                 → detección del proxy, caché local y registro de estado de fuentes
+    ├── weather-grid.js        → grilla de viento/temperatura/humedad + interpolación
+    ├── map-init.js            → MapLibre, terreno 3D, cámaras, círculo de referencia
+    ├── wind-layer.js          → partículas de viento animadas
+    ├── fuel-grid.js           → grilla de combustible CONSULTABLE por celda de 250 m (sin DOM, probable en Node)
+    ├── heat-layer.js          → mapa de calor (reutilizable: ciudad y zonas locales)
+    ├── fuel-layer.js          → cobertura vegetal (ESA WorldCover): imagen + construye la grilla
+    ├── overpass-utils.js      → fetch a Overpass con reintento, mirror y caché
+    ├── water-layer.js         → fuentes de agua y ríos (Overpass)
+    ├── hydrants-layer.js      → grifos (Overpass)
+    ├── firestations-layer.js  → estaciones de bomberos (Overpass)
+    ├── nasa-firms-layer.js    → focos de calor satelitales + replay (NASA FIRMS)
+    ├── local-fire-heat.js     → zonas de calor locales alrededor de focos FIRMS
+    ├── inspector.js           → "Consultar un punto": altura, pendiente, vegetación, clima y riesgo
+    ├── routing.js             → rutas de emergencia (estación → agua → foco) y capa de tráfico
+    ├── chile-weather-layer.js → estaciones DMC + comparación modelo vs. medición
+    ├── owm-layers.js          → OBSOLETO (vacío) — borrar el archivo (nada lo usa)
+    └── main.js                → orquesta todo + controles
 ```
 
-## Sobre la grilla de viento/temperatura
+## Si algo no carga
 
-Open-Meteo no ofrece (todavía) un endpoint de "área" — hay que pedir puntos
-específicos. `weather-grid.js` arma una grilla de `gridSize x gridSize` puntos
-(6×6 por defecto) alrededor del centro, cubriendo `gridRadiusKm` km a la
-redonda, y pide **todos los puntos en una sola llamada HTTP** (Open-Meteo
-soporta coordenadas separadas por coma en un solo request — no hace 36
-llamadas separadas).
+- Mirar el panel **"Estado de las fuentes"**: dice cuál falló y por qué.
+- **Cualquier capa de Overpass falla**: botón "🔄 Actualizar datos ahora"
+  reintenta solo lo que falló. Si hay un dato guardado de hasta 24 h, se
+  usa mientras tanto (aparece como "dato guardado").
+- **NASA FIRMS dice que falta la key o el proxy**: crear `.env` y correr
+  con `python server.py`.
+- **Estaciones DMC en gris**: falta `DMC_TOKEN` en `.env`, o el token fue
+  rechazado (el mensaje exacto sale en el panel). El crudo de la última
+  respuesta queda en `cache/` para revisar el esquema real.
+- **`tiles.openfreemap.org` / `tiles.mapterhorn.com` caídos**: cambiar
+  `mapStyle` en `config.js` a `bright` o `positron`.
 
-Entre los puntos de la grilla, el viento y la temperatura se interpolan
-(`WeatherGrid.sample()`) para que las partículas se muevan de forma continua
-y no salten entre 36 valores fijos. El viento se interpola convirtiendo
-velocidad+dirección a componentes vectoriales (u/v) antes de promediar —
-promediar el ángulo directamente es un error común (el promedio entre 350°
-y 10° no da 180°).
+## Próximos pasos
 
-Si suben `gridSize`, el mapa queda más preciso pero cada actualización pide
-más puntos en la misma llamada — no debería ser un problema para uso normal,
-pero no lo dejen en un número absurdamente alto sin necesidad.
-
-## Si el mapa no carga
-
-- **`tiles.openfreemap.org` no responde**: cambiar `mapStyle` en `config.js`
-  a `bright` o `positron` (mismo dominio, otro estilo), o conseguir una key
-  gratis de MapTiler como alternativa (ver comentarios en `config.js`).
-- **El terreno 3D no aparece**: `tiles.mapterhorn.com` puede estar caído
-  ocasionalmente por ser un servicio pequeño gratuito. Alternativa sin key:
-  AWS Open Data Terrarium tiles (URL comentada en `config.js`), un poco más
-  lenta pero muy estable.
-- **"Error consultando Open-Meteo"**: revisar la consola del navegador — casi
-  siempre es un parámetro mal formado en la URL o que se superó algún límite
-  temporal de la grilla (rangos de lat/lon inválidos si `gridRadiusKm` es
-  absurdamente grande).
-- **"⚠️ No se pudo cargar la cobertura vegetal"**: esta capa depende de
-  Microsoft Planetary Computer. Si falla, revisen la consola (F12) — el
-  mensaje de error queda ahí. El resto del mapa (viento, temperatura,
-  cámaras) sigue funcionando igual aunque esta capa falle; está aislada
-  a propósito para que un servicio externo caído no rompa todo lo demás.
-  (Nota histórica: la primera versión de esta capa usaba el WMS de
-  Terrascope, que empezó a fallar de forma persistente —
-  `net::ERR_HTTP2_PROTOCOL_ERROR` incluso pegando la URL directo en el
-  navegador desde dos redes distintas— así que se migró a Planetary
-  Computer.)
-
-## Próximos pasos (no incluidos todavía)
-
-1. **Conectar el centro del mapa al backend real** — hoy es fijo en
-   `config.js`, debería recibir la coordenada de la alerta/cámara activa.
-2. **Traer de vuelta la simulación de propagación de incendio** (la del
-   playground anterior) pero corriendo sobre este terreno real en vez de uno
-   ficticio — ahora que tienen elevación real, el factor de pendiente del
-   autómata celular puede usar datos reales en vez de la función de ruido.
-3. **Capa de fuentes de agua reales** (Overpass API) en vez de las 4
-   fuentes inventadas del playground.
-4. ~~**Capa de riesgo de combustible real**~~ — ✅ ya está: `js/fuel-layer.js`
-   usa ESA WorldCover (cobertura vegetal satelital real, sin necesidad de
-   CONAF/CENIA). Es una simplificación de primer orden — clasifica por tipo
-   de cobertura, no por humedad/carga de combustible real — pero es dato
-   satelital verificable, no inventado. Documentar esta limitación
-   explícitamente en la memoria.
-
-## Nota sobre acceso a cámaras institucionales (CONAF/CENIA)
-
-CONAF y el CENIA ya operan una red real de cámaras de teledetección de
-incendios en Chile (incluida una en Sky Costanera, Santiago), pero el feed
-es gestionado internamente — no encontramos una API pública para
-conectarse. Si en algún momento pueden conversar con ellos, vale la pena
-intentarlo (colaboración académica), pero el proyecto NO depende de eso:
-tanto el mapa de calor (Open-Meteo) como la cobertura vegetal (ESA
-WorldCover) son fuentes públicas independientes que no requieren ningún
-contacto institucional.
+1. Registrar el token DMC y confirmar el esquema real de
+   `getDatosRecientesRedEma` (el normalizador de `server.py` es tolerante
+   pero no se pudo probar contra datos reales sin token).
+2. ~~Grilla de combustible consultable por celda~~ (hecho: `fuel-grid.js` +
+   "Consultar un punto", ver METODOLOGIA.md §2b).
+3. Simulación de propagación de incendio sobre este terreno real, con
+   `findNearestWaterSource` y `findNearestFireStation` ya listos.
+4. Rutas: ver METODOLOGIA.md §5e. Falta probarlas contra OSRM/TomTom reales, evitar el humo y, más adelante, OpenRouteService o un OSRM/Valhalla propio.
+5. Archivo histórico: dejar corriendo el recolector varios días (METODOLOGIA.md §5f) y correr `--historico` para traer incendios pasados (§5f); falta área quemada real (MODIS MCD64A1/CONAF) para validar.
+6. Backend real cámara↔central (la prioridad más alta de todo FireWatch).
 
 ## Atribuciones requeridas
 
-- Datos de mapa: © OpenStreetMap contributors, vía OpenFreeMap
+- Mapa: © OpenStreetMap contributors, vía OpenFreeMap
 - Terreno: Mapterhorn
-- Viento/temperatura: Open-Meteo.com (CC BY 4.0)
-
-Mantengan estos créditos visibles en la versión final que presenten — es
-parte de las condiciones de uso gratuito de estos servicios.
+- Viento/temperatura/humedad: Open-Meteo.com (CC BY 4.0)
+- Estaciones meteorológicas: Dirección Meteorológica de Chile (DMC)
+- Cobertura vegetal: ESA WorldCover, vía Microsoft Planetary Computer
+- Agua, grifos y bomberos: © OpenStreetMap contributors, vía Overpass API
+- Focos de calor: NASA FIRMS

@@ -17,15 +17,34 @@
 <div id="map"></div>
 
 <div class="badge"><span class="dot"></span>
-  <span><b>FireWatch · Mapa 3D</b> — mapa real (OpenStreetMap + terreno 3D real), viento y temperatura en vivo desde Open-Meteo. Sin API key, sin datos ficticios.</span>
+  <span><b>FireWatch · Mapa 3D</b> — mapa real (OpenStreetMap + terreno 3D real), viento, temperatura, cobertura vegetal, fuentes de agua, grifos, estaciones de bomberos y focos de calor satelitales de Santiago. Datos reales, sin datos ficticios.</span>
 </div>
 
 <div class="panel" id="controls">
   <h2>🗺️ Capas</h2>
   <div class="toggle-row"><span>Viento (partículas)</span><input type="checkbox" id="toggle-wind" checked></div>
-  <div class="toggle-row"><span>Mapa de calor (temperatura)</span><input type="checkbox" id="toggle-heat" checked></div>
+  <div class="toggle-row"><span>Mapa de calor</span><input type="checkbox" id="toggle-heat" checked></div>
+  <select id="heat-mode" class="sel" title="Qué pinta el mapa de calor">
+    <option value="risk">Riesgo de incendio (0-100)</option>
+    <option value="combined">Riesgo × combustible (vegetación)</option>
+    <option value="temp">Temperatura real (escala relativa)</option>
+    <option value="tempadj">Temperatura ajustada a 600 m</option>
+  </select>
+  <div id="heat-legend-wrap" style="margin:.3rem 0 .1rem;">
+    <div id="heat-legend"></div>
+  </div>
   <div class="toggle-row"><span>Sensor de cámara</span><input type="checkbox" id="toggle-cam" checked></div>
-  <div class="toggle-row"><span>Cobertura vegetal (riesgo combustible)</span><input type="checkbox" id="toggle-fuel" checked></div>
+  <div class="toggle-row"><span>Cobertura vegetal (riesgo combustible)</span><input type="checkbox" id="toggle-fuel"></div>
+  <div class="toggle-row"><span>Fuentes de agua</span><input type="checkbox" id="toggle-water" checked></div>
+  <div class="toggle-row"><span>Grifos (hidrantes)</span><input type="checkbox" id="toggle-hydrants" checked></div>
+  <div class="toggle-row"><span>Estaciones de bomberos</span><input type="checkbox" id="toggle-firestations" checked></div>
+  <div class="toggle-row"><span>Focos de calor (NASA FIRMS + zona local)</span><input type="checkbox" id="toggle-firms" checked></div>
+  <div class="toggle-row"><span>Consultar un punto (clic en el mapa)</span><input type="checkbox" id="toggle-inspect"></div>
+  <div class="toggle-row"><span>Tráfico en vivo (TomTom)</span><input type="checkbox" id="toggle-traffic"></div>
+  <div class="toggle-row sub"><span>Vías del tráfico</span>
+    <select id="traffic-detail"><option value="principales" selected>Solo principales</option><option value="secundarias">+ secundarias</option><option value="todas">Todas</option></select></div>
+  <div class="toggle-row sub"><span>Opacidad del tráfico</span><input type="range" id="traffic-opacity" min="20" max="100" value="90"></div>
+  <div class="toggle-row"><span>Estaciones DMC (Meteochile)</span><input type="checkbox" id="toggle-chile" checked></div>
 
   <div class="legend">
     <div class="sw-row"><span class="sw" style="background:#3b82f6;"></span>Viento calmo</div>
@@ -35,11 +54,42 @@
   </div>
 
   <div class="legend" style="margin-top:.9rem;">
-    <div class="sw-row"><span class="sw" style="background:#006400;"></span>Bosque / matorral — riesgo alto</div>
-    <div class="sw-row"><span class="sw" style="background:#ffff4c;"></span>Pastizal — riesgo medio</div>
-    <div class="sw-row"><span class="sw" style="background:#f096ff;"></span>Cultivo — riesgo medio-bajo</div>
-    <div class="sw-row"><span class="sw" style="background:#fa0000;"></span>Urbano — riesgo bajo</div>
-    <div class="sw-row"><span class="sw" style="background:#0064c8;"></span>Agua — sin riesgo</div>
+    <div class="sw-row"><span class="sw" style="background:#b71c1c;"></span>Matorral — riesgo muy alto</div>
+    <div class="sw-row"><span class="sw" style="background:#e65100;"></span>Bosque — riesgo alto</div>
+    <div class="sw-row"><span class="sw" style="background:#fbc02d;"></span>Pastizal — riesgo medio-alto</div>
+    <div class="sw-row"><span class="sw" style="background:#aed581;"></span>Cultivo — riesgo medio-bajo</div>
+    <div class="sw-row"><span class="sw" style="background:#787878; opacity:.5;"></span>Urbano / suelo desnudo — bajo</div>
+  </div>
+
+  <div class="legend" style="margin-top:.9rem;">
+    <div class="sw-row"><span class="sw" style="background:#3b82f6; border-radius:50%; height:10px;"></span>Fuente de agua real (OSM)</div>
+    <div class="sw-row"><span class="sw" style="background:#a855f7; border-radius:50%; height:10px;"></span>Grifo real (OSM, desde zoom 12)</div>
+    <div class="sw-row"><span class="sw" style="background:#ff6a3d; border-radius:50%; height:10px;"></span>Estación de bomberos (OSM)</div>
+    <div class="sw-row"><span class="sw" style="background:#e5484d; border-radius:50%; height:10px; box-shadow:0 0 4px #e5484d;"></span>Foco de calor satelital (NASA FIRMS)</div>
+    <div class="sw-row"><span class="sw" style="background:transparent; border:2px dashed #ff6a3d; border-radius:50%; height:10px;"></span>Zona de calor local (radio 2.5 km, con rótulo)</div>
+    <div class="sw-row"><span class="sw" style="background:#2fae6d; border-radius:50%; height:10px;"></span>Estación DMC con datos frescos</div>
+    <div class="sw-row"><span class="sw" style="background:#e8b93d; border-radius:50%; height:10px;"></span>Estación DMC con dato atrasado</div>
+    <div class="sw-row"><span class="sw" style="background:#7d8a9a; border-radius:50%; height:10px;"></span>Estación DMC sin mediciones</div>
+  </div>
+
+  <div class="legend" style="margin-top:.9rem;">
+    <div class="sw-row" style="color:var(--paper);"><b>🚒 Rutas de emergencia</b></div>
+    <div class="note" style="color:var(--paper-dim);">Pulsa «Ruta de bomberos» en un foco o en un punto consultado.</div>
+    <div class="sw-row"><span class="sw" style="background:#ff4d3d;"></span>Ruta más rápida desde una estación</div>
+    <div class="sw-row"><span class="sw" style="background:repeating-linear-gradient(90deg,#4aa3ff 0 6px,transparent 6px 9px);"></span>Pasando por grifo / fuente de agua</div>
+    <div class="sw-row"><span class="sw" style="background:#9aa4b2;"></span>Alternativas</div>
+    <div class="sw-row"><span class="sw" style="background:linear-gradient(90deg,#2fae6d,#e8b93d,#e5484d,#7a1010);"></span>Tráfico: fluido → detenido</div>
+  </div>
+
+  <div class="legend" style="margin-top:.9rem;">
+    <div class="sw-row" style="color:var(--paper);"><b>🛰️ Replay: focos + clima del momento</b></div>
+    <select id="replay-select" class="sel"></select>
+    <input type="date" id="replay-date" class="sel" style="display:none;" min="2018-01-01">
+    <div class="btn-row">
+      <button class="btn" id="btn-replay">Ver replay</button>
+      <button class="btn" id="btn-live">Volver a en vivo</button>
+    </div>
+    <div id="replay-note" class="note"></div>
   </div>
 
   <button class="btn" id="btn-refresh">🔄 Actualizar datos ahora</button>
@@ -48,17 +98,36 @@
 <div class="panel" id="info">
   <h2>📍 Estado actual</h2>
   <div id="info-body"><div class="info-line">Cargando datos de Open-Meteo…</div></div>
+  <h2 style="margin-top:.9rem;">🔌 Estado de las fuentes</h2>
+  <div id="source-status"></div>
+  <div class="note" style="color:var(--paper-dim);"><a href="/api/store/log.txt" target="_blank" rel="noopener" style="color:var(--ember);">Ver registro del archivo histórico</a> (qué se guardó y qué falló)</div>
+</div>
+
+<div id="route-card" class="fw-route-card" style="display:none;">
+  <div id="route-note" class="fw-route-note"></div>
+  <button class="btn" id="btn-route-clear">Quitar ruta</button>
 </div>
 
 <div id="status-bar"><span id="status-text">Iniciando mapa…</span></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.js"></script>
 <script src="js/config.js"></script>
+<script src="js/api.js"></script>
 <script src="js/weather-grid.js"></script>
 <script src="js/map-init.js"></script>
 <script src="js/wind-layer.js"></script>
+<script src="js/fuel-grid.js"></script>
 <script src="js/heat-layer.js"></script>
 <script src="js/fuel-layer.js"></script>
+<script src="js/overpass-utils.js"></script>
+<script src="js/water-layer.js"></script>
+<script src="js/hydrants-layer.js"></script>
+<script src="js/firestations-layer.js"></script>
+<script src="js/nasa-firms-layer.js"></script>
+<script src="js/local-fire-heat.js"></script>
+<script src="js/inspector.js"></script>
+<script src="js/routing.js"></script>
+<script src="js/chile-weather-layer.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
