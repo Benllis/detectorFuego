@@ -1,0 +1,8 @@
+# Mínimos orientativos, armados a partir de los import del código (no se fijaron versiones exactas).
+# Para reproducir TU entorno exacto: con el .venv-camara activo, `pip freeze > requirements-lock.txt`.
+opencv-python>=4.8
+onnxruntime>=1.17
+numpy>=1.26
+customtkinter>=5.2
+pillow>=10
+requests>=2.31

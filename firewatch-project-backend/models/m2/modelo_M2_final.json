@@ -1,0 +1,45 @@
+{
+  "variables_en_orden": [
+    "prev",
+    "prev_max3",
+    "prev_max7",
+    "prev_max15",
+    "prev_max31",
+    "prev_dens7",
+    "prev_dens15",
+    "prev_dens31",
+    "dist_prev",
+    "log_n_prev",
+    "elevation",
+    "slope_deg",
+    "aspect_sin",
+    "aspect_cos",
+    "landcover_fuel",
+    "wind_speed",
+    "wind_sin",
+    "wind_cos",
+    "temp_max",
+    "humidity"
+  ],
+  "creado": "2026-10-11T20:40:41",
+  "muestras_entrenamiento": 12239,
+  "filas": 2437839,
+  "positivos": 90152,
+  "convenciones": "parche 64x64 de 0.01 grados; fila 0 = sur; viento km/h (meteorologico); anillo del borde ignorado; focos fuera del parche descartados",
+  "referencia_auc_pr_validacion_85_15_etiquetas_limpias": {
+    "pixel": 0.1965,
+    "bloque_4x4": 0.3672,
+    "bloque_8x8": 0.4371,
+    "persistencia_sin_anillo": {
+      "pixel": 0.0468,
+      "bloque_4x4": 0.1597,
+      "bloque_8x8": 0.2075
+    },
+    "azar": {
+      "pixel": 0.0021,
+      "bloque_4x4": 0.0107,
+      "bloque_8x8": 0.0299
+    }
+  },
+  "limites": "solo continuacion de un incendio ya detectado; una particion de validacion, sin validacion temporal; etiquetas con MODIS+VIIRS mezclados"
+}

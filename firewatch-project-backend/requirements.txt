@@ -1,0 +1,15 @@
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9
+bcrypt>=4.1
+# modelo M2 (propagación). scikit-learn va FIJO: el modelo se guardó con esa versión
+numpy>=1.26
+scipy>=1.11
+joblib>=1.3
+scikit-learn==1.9.1
+# solo para pruebas
+pytest>=8
+httpx>=0.27
+# solo para generar el certificado HTTPS (tools/generar_certificado.py) y probarlo
+cryptography>=42
+requests>=2.31

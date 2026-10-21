@@ -9,9 +9,18 @@ import os
 import threading
 from dataclasses import dataclass, field
 
+from camera_sources import open_capture
+
 
 class CameraThread(threading.Thread):
-    """Hilo de captura liviano — mantiene la webcam abierta de forma estable."""
+    """
+    Hilo de captura de UNA cámara. Mantiene la fuente abierta y, si se corta (cámara IP que pierde Wi-Fi,
+    se reinicia o cambia de IP), la vuelve a abrir sola con pausas crecientes (1, 2, 4, 8, 15 y 30 s) sin
+    que el resto del programa se entere más que por el estado visible (`status`).
+    """
+    BACKOFF_S = (1, 2, 4, 8, 15, 30)
+    STALL_S = 8.0          # sin cuadros nuevos durante este tiempo → se considera caída y se reabre
+    OPEN_TIMEOUT_MS = 8000
 
     def __init__(self, source):
         super().__init__(daemon=True)
@@ -22,6 +31,9 @@ class CameraThread(threading.Thread):
         self.running = True
         self.lock = threading.Lock()
         self.connected = False
+        self.status = "Conectando…"
+        self.attempt = 0                # reintentos desde el último cuadro bueno
+        self.last_frame_time = 0.0
 
     def _parse_source(self, source):
         if isinstance(source, int):
@@ -30,33 +42,88 @@ class CameraThread(threading.Thread):
             return int(source.strip())
         return source
 
-    def run(self):
-        # Abrir la cámara una sola vez al iniciar el hilo
-        backend = cv2.CAP_DSHOW if isinstance(self.source_clean, int) else cv2.CAP_FFMPEG
-        self.cap = cv2.VideoCapture(self.source_clean, backend)
-        
-        if self.cap.isOpened() and isinstance(self.source_clean, int):
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-            self.cap.set(cv2.CAP_PROP_FPS, 30)
+    def _set(self, connected, status):
+        with self.lock:
+            self.connected = connected
+            if not connected:
+                self.ret = False
+            self.status = status
 
+    def _sleep(self, seconds):
+        """Espera en tramos cortos para poder detenerse rápido."""
+        end = time.time() + seconds
+        while self.running and time.time() < end:
+            time.sleep(0.1)
+
+    def _wait_before_retry(self, why):
+        self.attempt += 1
+        wait = self.BACKOFF_S[min(self.attempt - 1, len(self.BACKOFF_S) - 1)]
+        self._set(False, f"Sin señal ({why}) · reintento {self.attempt} en {wait} s")
+        self._sleep(wait)
+
+    def run(self):
+        is_file = isinstance(self.source_clean, str) and os.path.isfile(self.source_clean)
         while self.running:
+            # ── abrir ──
+            self._set(False, "Conectando…" if not self.attempt else self.status)
+            self.cap = open_capture(self.source_clean, self.OPEN_TIMEOUT_MS)
             if not self.cap or not self.cap.isOpened():
-                time.sleep(1.0)
+                self._release()
+                self._wait_before_retry("no se pudo abrir")
                 continue
 
-            ret, frame = self.cap.read()
-            with self.lock:
-                self.ret = ret
-                if ret:
-                    self.frame = frame
-                    self.connected = True
-                else:
-                    self.connected = False
-            time.sleep(0.01)  # Evita sobrecargar la CPU
+            if isinstance(self.source_clean, int):
+                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                self.cap.set(cv2.CAP_PROP_FPS, 30)
 
-        if self.cap and self.cap.isOpened():
-            self.cap.release()
+            # Archivo de video (pruebas): en bucle y a su velocidad natural.
+            frame_delay = 0.01
+            if is_file:
+                fps = self.cap.get(cv2.CAP_PROP_FPS)
+                frame_delay = 1.0 / fps if fps and 1 < fps < 120 else 1.0 / 25
+            fallos = 0
+            self.last_frame_time = time.time()
+
+            # ── leer ──
+            while self.running:
+                ret, frame = self.cap.read()
+                if not ret and is_file:
+                    self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # volver al inicio del video
+                    fallos += 1
+                    if fallos >= 3:  # el archivo no se puede leer
+                        self._set(False, "Archivo de video ilegible")
+                    time.sleep(0.05)
+                    continue
+                if ret and frame is not None:
+                    fallos = 0
+                    self.attempt = 0
+                    self.last_frame_time = time.time()
+                    with self.lock:
+                        self.frame = frame
+                        self.ret = True
+                        self.connected = True
+                        self.status = "Conectada"
+                    time.sleep(frame_delay)  # respeta el ritmo del video / evita gastar CPU
+                    continue
+                fallos += 1
+                if time.time() - self.last_frame_time > self.STALL_S or fallos >= 50:
+                    break  # transmisión caída: cerrar y reconectar
+                time.sleep(0.05)
+
+            self._release()
+            if self.running:
+                self._wait_before_retry("transmisión interrumpida")
+
+        self._release()
+
+    def _release(self):
+        try:
+            if self.cap is not None:
+                self.cap.release()
+        except Exception:  # noqa: BLE001
+            pass
+        self.cap = None
 
     def get_frame(self):
         with self.lock:
@@ -82,6 +149,9 @@ class CameraState:
     last_alert_time: float = 0.0
     last_alert_state: str = None
     last_inference_time: float = 0.0
+    last_detection_time: float = 0.0      # última vez que se vio fuego o humo
+    history: list = field(default_factory=list)   # últimas inferencias (True = hubo detección)
+    conf_history: list = field(default_factory=list)   # (momento, confianza máx. fuego, confianza máx. humo)
 
 
 class CameraManager:
