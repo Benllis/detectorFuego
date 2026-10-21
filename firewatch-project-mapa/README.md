@@ -50,6 +50,8 @@ Ninguna key va en el código del navegador.
 | Fuentes de agua / grifos / estaciones de bomberos | **Real** — OpenStreetMap vía Overpass (crowdsourced, cobertura desigual). Ríos con trazado real. Caché de 24 h |
 | Focos de calor satelitales | **Real** — NASA FIRMS (VIIRS NOAA-20, NOAA-21 y Suomi-NPP), vía el proxy. Incluye **replay** de incendios históricos y **"ayer"**, con el clima real de ese momento (Open-Meteo archivo, METODOLOGIA §5c) |
 | Área de cobertura | **Fija** — Gran Santiago (28 km), no se mueve al navegar |
+| Propagación por reglas («🔥 Simular propagación») | **Estimación**, no pronóstico — modelo de reglas (elipse de Richards) con viento constante; da dirección y tiempo de llegada a 1, 3 y 6 h. Tiende a sobrestimar pasadas las primeras horas (METODOLOGIA §5g) |
+| Continuación probable (M2, «🛰️ Continuación probable») | **Estimación con modelo entrenado** — corre en el backend (`POST /propagacion/m2`): en qué celdas de ~1 km es más probable que haya fuego al día siguiente, a partir de un foco ya detectado. **No predice incendios nuevos**, casi no depende de la dirección del viento y sus tres niveles ordenan celdas, **no son porcentajes**. Requiere sesión en la central y el backend con el modelo instalado. Ver `js/m2-layer.js` y `firewatch-project-backend/CONTRATO_API.md` §5b |
 
 El panel **"Estado de las fuentes"** (arriba a la derecha) muestra, para
 cada fuente, si cargó, cuántos datos trajo, si vienen de caché o si son
@@ -72,10 +74,17 @@ un dato viejo porque el servicio estaba caído.
   endpoints `/api/*`.
 - **Open-Meteo en una sola petición** (64 puntos, verificado en vivo) y
   refresco cada 60 min, porque el modelo se recalcula cada hora.
-- **Overpass se consulta capa por capa**, con reintento, tope de tiempo,
-  mirror de respaldo (`maps.mail.ru`; `overpass.kumi.systems` y
-  `overpass.private.coffee` no respondieron el 28-09-2026) y caché de 24 h
-  (`overpass-utils.js`).
+- **Overpass se consulta capa por capa y pasa por el servidor local**
+  (`POST /api/overpass`, ver `server.py`): el navegador no puede leer la
+  respuesta directa de los servidores públicos cuando no mandan cabeceras CORS
+  (error "blocked by CORS policy"), el servidor local no tiene esa restricción.
+  El servidor reintenta, cae al mirror (`maps.mail.ru`; `overpass.kumi.systems`
+  y `overpass.private.coffee` no respondieron el 28-09-2026), guarda 24 h en
+  disco y acepta solo consultas `[out:json]` de hasta 64 KB hacia hosts fijos
+  (el navegador aporta el texto de la consulta, nunca una URL). Si el mapa se
+  sirve con otro servidor (sin `/api/overpass`) o el local no responde,
+  `overpass-utils.js` prueba directo como antes. Caché de 24 h también en el
+  navegador.
 - **Área fija en Santiago, no "todo Chile"**: se probó con tiles de
   OpenWeatherMap y se descartó porque esos tiles no muestran dirección de
   viento (bitácora, Sesión 07).
@@ -105,6 +114,8 @@ firewatch-project-mapa/
 ├── tools/calibrar_indice.js   → reproduce la comprobación del índice con incendios reales (Node 18+)
 ├── tests/routing.test.js      → lógica pura de rutas (`node tests/routing.test.js`)
 ├── tests/test_route.py        → endpoint /api/route del proxy (`python tests/test_route.py`)
+├── tests/test_overpass.py     → proxy de Overpass: reintento, mirror, caché, validación (`python tests/test_overpass.py`)
+├── tests/overpass-proxy.test.js → cliente de Overpass: proxy primero, vía directa si no existe (`node tests/overpass-proxy.test.js`)
 ├── tests/fuel-grid.test.js    → pruebas de la grilla de combustible y pendiente (`node tests/fuel-grid.test.js`)
 └── js/
     ├── config.js              → cámaras, área, estilo de mapa, satélites y presets de replay

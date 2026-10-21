@@ -547,6 +547,76 @@ Opciones: `--zona`, `--desde/--hasta` (por defecto 3 años), `--solo {focos,even
 (errores). Cuidado: calor industrial/agrícola puede aparecer como "incendio"; el clima
 es puntual (centroide), no por celda; y respeta la cuota de Open-Meteo (con 429 se detiene).
 
+## 5g. Simulador de propagación y su calibración con Valparaíso 2024
+
+**Qué es.** `js/spread-model.js` calcula, por reglas, cuándo llegaría el fuego a cada celda de 250 m (elipse de Richards con viento + pendiente; camino de menor tiempo con Dijkstra). Es un modelo por reglas, no físico. `js/spread-layer.js` lo dibuja en el mapa y `tools/calibrar_propagacion.js` lo compara con un incendio real.
+
+**Cómo se calibró** (12-10-2026). Incendios de Valparaíso, 2 al 4 de febrero de 2024. Punto de partida: la pasada VIIRS del 2-feb 18:38 UTC (50 detecciones de confianza normal). Se comparó el área simulada con la unión de las detecciones de las pasadas siguientes (+11 h, +24 h, +35 h), ensanchada 500 m. Datos: FIRMS VIIRS, ESA WorldCover 2021, DEM y clima por hora de Open-Meteo (promedio de 24 h desde la partida: viento 19 km/h desde 190°, 24 °C, humedad 52 %). Las dos primeras pasadas sirvieron para ajustar; la de +35 h se reservó para validar.
+
+| Pasada | Simulado con r0 = 5 | Simulado con r0 = 4 (parámetros actuales) | Mejor ajuste (r0 = 3) | Observado |
+|---|---|---|---|---|
+| +11 h | 17.656 ha | 15.206 ha | 9.731 ha | 11.606 ha |
+| +24 h | 49.938 ha | 42.313 ha | 24.769 ha | 13.906 ha |
+| +35 h | 95.569 ha | 79.738 ha | 44.581 ha | 15.256 ha |
+
+(Los valores de r0 = 4 y r0 = 3 son de la corrida con WorldCover 2021 únicamente; los de r0 = 5 son de la primera corrida, que mezcló por error las versiones 2020 y 2021.)
+
+**Resultado.** El modelo sobreestima y el error crece con las horas, porque no incluye bomberos, cortafuegos ni barreras (mar, zona urbana). El mejor ajuste fue r0 = 3, lbPerKmh = 0,12 y pendiente 0 (IoU 0,42 contra 0,35 de la línea base; en la pasada de validación 0,33 contra 0,15). Sin embargo, solo 6 de 364 combinaciones quedaron casi empatadas (r0 entre 3 y 4, lbPerKmh entre 0,06 y 0,16) y la pendiente cayó en el borde de la malla, así que los parámetros están poco determinados.
+
+**Repetición con la vegetación corregida.** El mejor ajuste siguió siendo r0 = 3, lbPerKmh = 0,12 y pendiente 0 (IoU 0,43; validación 0,31), pero solo 3 combinaciones quedaron casi empatadas. Con los parámetros que dejamos (r0 = 4) el simulador queda 1,3 veces sobre lo observado a las 11 h, pero 3 veces a las 24 h y 5 veces a las 35 h: el valor elegido favorece las primeras horas, que son las que más importan para una alerta, a costa de exagerar más tarde. Con r0 = 3 el error a las 35 h baja a 2,9 veces, pero a las 11 h el modelo se queda corto (0,84 veces).
+
+**Decisión.** Se bajó `r0` de 5 a 4 y se subió `lbPerKmh` de 0,08 a 0,12 (dentro de la zona de empate); la pendiente se dejó en 0,5 km/h por cada 1 %, porque con el DEM muestreado cada 1,5-2 km el resultado no permite afirmar que no importe. La tarjeta del mapa avisa que pasadas las primeras horas la estimación es más bien un máximo.
+
+**Límites.** Un solo incendio y tres pasadas: orden de magnitud, no calibración estadística. VIIRS ve el frente activo en el instante de la pasada (≈ 2 por día), no el área quemada total. Falta repetir con otros incendios (p. ej. Biobío 2023) antes de dar valores definitivos. Se reproduce con `node tools/calibrar_propagacion.js --firms <CSV de FIRMS>`; deja `informe.md` y `resultado.json` en `data/calibracion/valparaiso2024/`.
+
+## 5h. Cuarteles y grifos desde el SIG de Bomberos (copia local)
+
+Overpass no alcanzaba para cargar cuarteles y grifos de todo el país (errores 429/504 y cobertura OSM desigual). Se usa el catastro del SIG de Bomberos de Chile (sig.bomberos.cl: cuerpos, compañías y grifos 2019), descargado **una sola vez** con `tools/ingest_bomberos.py` a `data/bomberos/` (fuera de Git) y servido por `server.py` en `/api/bomberos/*`. El mapa muestra la fuente y el año, y OSM sigue para el agua y como contraste. El sitio no declara licencia: uso académico, copia local, sin redistribuir y citando la fuente. Son datos de un catastro, no información en vivo: pueden faltar o estar desactualizados.
+
+## 5i. Evaluación de los modelos de fuego y humo de la cámara (12-10-2026)
+
+**Qué se midió.** Cuántas imágenes con fuego o humo detectan los modelos ONNX de la cámara (`models/modelo_a_fire.onnx`, fuego, y `modelo_b_smoke.onnx`, humo) y cuántas imágenes sin nada disparan una detección. Se usó `evaluacion_modelos/evaluar_modelos.py`, que repite el mismo recorte por recuadros que el panel de cámaras (imágenes con relación de aspecto de 1,5 o más se parten en recuadros cuadrados con ~50 % de solape; cada recuadro se reduce a 416x416). El panel usa umbrales de 0,35 (fuego) y 0,55 (humo).
+
+**Datos.** Parte `test` de dos datasets públicos con etiquetas en formato YOLO: **D-Fire** (descarga desde el Google Drive que indica su repositorio; no se revisó su licencia) y **FASDD_CV v4** (Roboflow Universe, CC BY 4.0, imágenes de 640x640). De cada uno se tomaron hasta 300 imágenes al azar por grupo (solo fuego, solo humo, ambos y sin nada; semilla fija), 1.120 imágenes de D-Fire y 1.200 de FASDD. La verdad de cada imagen sale de sus etiquetas: «tiene fuego», «tiene humo» o «no tiene nada» (archivo de etiquetas vacío).
+
+**Cómo se cuenta.** Por imagen, no por caja: una imagen cuenta como acierto si el modelo supera el umbral en cualquier parte del cuadro, aunque la caja no coincida con la etiquetada. Por eso el porcentaje de aciertos puede ser algo mayor que el real. «Falsas» es el porcentaje de imágenes sin nada donde el modelo igual detecta algo. No se midieron mAP ni IoU de cajas.
+
+**Resultados con los umbrales actuales del panel.**
+
+| | D-Fire | FASDD |
+|---|---|---|
+| Fuego (umbral 0,35): imágenes con fuego detectadas | 49,8 % | 27,8 % |
+| Fuego: falsas alarmas sobre imágenes sin nada | 12,7 % | 12,3 % |
+| Humo (umbral 0,55): imágenes con humo detectadas | 15,4 % | 26,0 % |
+| Humo: falsas alarmas sobre imágenes sin nada | 0,7 % | 0,7 % |
+
+Barrido de umbrales (aciertos / falsas, en %):
+
+| Umbral | Fuego D-Fire | Fuego FASDD | Humo D-Fire | Humo FASDD |
+|---|---|---|---|---|
+| 0,15 | 71,0 / 39,0 | 52,5 / 25,3 | 52,5 / 18,0 | 72,7 / 5,7 |
+| 0,25 | 58,7 / 20,3 | 35,8 / 18,0 | 41,3 / 11,0 | 60,7 / 4,7 |
+| 0,35 | 49,8 / 12,7 | 27,8 / 12,3 | 32,7 / 7,0 | 49,2 / 1,7 |
+| 0,50 | 42,3 / 7,0 | 19,5 / 5,0 | 19,6 / 2,3 | 31,3 / 0,7 |
+| 0,55 | 39,3 / 6,0 | 16,7 / 4,0 | 15,4 / 0,7 | 26,0 / 0,7 |
+| 0,70 | 30,7 / 3,7 | 11,0 / 2,0 | 5,2 / 0,3 | 8,8 / 0,0 |
+
+**Lectura.**
+- **Fuego.** Detecta entre el 28 % y el 50 % de las imágenes con fuego según el dataset y da cerca de un 12 % de falsas alarmas en los dos. Ningún umbral logra una detección alta con pocas falsas (con 0,15 detecta 53–71 % pero con 25–39 % de falsas). Es una limitación del modelo, no de la calibración.
+- **Humo.** Con el umbral actual detecta entre el 15 % y el 26 %. Bajar el umbral a 0,35 sube la detección (33–49 %), pero en D-Fire las falsas pasan de 0,7 % a 7 %, de modo que no se cambió. Un valor intermedio (0,50) da 20–31 % de aciertos con 0,7–2,3 % de falsas: una mejora pequeña.
+- **Conclusión.** Ajustar umbrales no basta: los dos modelos necesitan mejorarse con datos más variados (fuegos pequeños, lejanos, de gas, escenas cerradas).
+
+**Prueba previa a mano.** Con 12 capturas de incendios reales de video (llamas en chimenea, calle con humo, interior de casas, nocturno, explosión, un balón de gas), el modelo de fuego superó 0,35 en 7, y el de humo superó 0,55 en 1. La llama de un balón de gas casi no se detectó. Es anecdótico (n = 12, sin negativos), pero coincide con la medición.
+
+**Límites.**
+- La incertidumbre con 300 imágenes por grupo es de unos 3 a 5 puntos porcentuales.
+- Las falsas alarmas son por imagen; el panel además exige 2 detecciones en 4 revisiones, lo que reduce las falsas sueltas pero no las de una escena fija que se parece a fuego.
+- No se sabe con qué datos se entrenaron los modelos. Si alguno de estos datasets formó parte del entrenamiento, los resultados serían optimistas; la diferencia entre D-Fire y FASDD no permite concluir con cuál se parecen más a los datos de entrenamiento.
+- Las imágenes son fotos de datasets, no cuadros de una cámara fija propia; falta medir falsas alarmas con videos de escenas reales sin fuego.
+- Cada corrida sobrescribe `resultados_evaluacion.csv`; para conservar ambas hay que usar `--csv`.
+
+**Cómo reproducirlo.** `python evaluar_modelos.py --yolo datos\D-Fire\test --max 300` y lo mismo con `datos\FASDD_CV.v4i.yolov8\test` (README en `evaluacion_modelos/`).
+
 ## 6. Estaciones meteorológicas — Dirección Meteorológica de Chile (Red EMA)
 
 **Qué es:** la Red de Estaciones Meteorológicas Automáticas (EMA) de la

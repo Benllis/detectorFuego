@@ -6,7 +6,11 @@ import queue
 import customtkinter as ctk
 from PIL import Image
 
-from database import init_db, DB_NAME
+import io
+import threading
+from tkinter import messagebox
+
+import api_client
 from login_view import LoginWindow
 
 ctk.set_appearance_mode("Dark")
@@ -84,14 +88,20 @@ class FireWatchCentralApp(ctk.CTk):
         self.on_logout_callback = on_logout_callback
 
         self.title("FireWatch Central — Panel de Monitoreo de Incendios")
-        self.geometry("1150x720")
+        self.geometry("1320x760")
 
-        self.alert_folder = os.path.abspath(os.path.join("..", "firewatch-project-camara", "alertas_pendientes"))
-        os.makedirs(self.alert_folder, exist_ok=True)
-
-        self.alert_queue = queue.Queue()
-        self.processed_ids = set()
+        self.token = current_user["token"]
+        self.incoming = queue.Queue()      # listas de pendientes traídas por el hilo de consulta
+        self.polling = False
+        self.api_error = None
+        self.pending = {}                  # id_alerta -> alerta (lo que el servidor dice que está pendiente)
+        self.seen_ids = set()              # ids ya vistos, para detectar las nuevas
+        self.new_ids = set()               # nuevas aún no abiertas por el operador
+        self.resolved_ids = set()          # resueltas aquí (evita que una consulta atrasada las reviva)
+        self.first_load = True
+        self.last_poll = None
         self.active_alert = None
+        self._list_sig = None
 
         self.setup_ui()
         self.check_pending_alerts()
@@ -193,15 +203,31 @@ class FireWatchCentralApp(ctk.CTk):
 
         self.view_frame = ctk.CTkFrame(self.main_content, fg_color="#1E1E1E")
         self.view_frame.grid(row=1, column=0, padx=20, pady=10, sticky="nsew")
-        self.view_frame.grid_columnconfigure(0, weight=3)
-        self.view_frame.grid_columnconfigure(1, weight=2)
+        self.view_frame.grid_columnconfigure(0, weight=0)
+        self.view_frame.grid_columnconfigure(1, weight=3)
+        self.view_frame.grid_columnconfigure(2, weight=2)
         self.view_frame.grid_rowconfigure(0, weight=1)
 
+        # Lista de alertas pendientes (más graves primero, y dentro de cada tipo las más recientes)
+        self.list_frame = ctk.CTkFrame(self.view_frame, fg_color="#262626", width=250)
+        self.list_frame.grid(row=0, column=0, padx=(15, 0), pady=15, sticky="ns")
+        self.list_frame.grid_propagate(False)
+        ctk.CTkLabel(self.list_frame, text="Alertas pendientes", font=("Arial", 14, "bold")).pack(pady=(10, 0))
+        self.lbl_list_count = ctk.CTkLabel(self.list_frame, text="0 en total", font=("Arial", 10), text_color="gray")
+        self.lbl_list_count.pack(pady=(0, 4))
+        self.filtro_tipo = "Todas"
+        self.seg_filtro = ctk.CTkSegmentedButton(self.list_frame, values=["Todas", "CRITICAL", "FIRE", "SMOKE", "FOTO"],
+                                                 command=self._on_filter, font=("Arial", 9))
+        self.seg_filtro.set("Todas")
+        self.seg_filtro.pack(fill="x", padx=6, pady=(0, 6))
+        self.scroll_pending = ctk.CTkScrollableFrame(self.list_frame, fg_color="transparent", width=214)
+        self.scroll_pending.pack(fill="both", expand=True, padx=4, pady=(0, 6))
+
         self.lbl_image = ctk.CTkLabel(self.view_frame, text="Esperando transmisiones...", font=("Arial", 14))
-        self.lbl_image.grid(row=0, column=0, padx=15, pady=15, sticky="nsew")
+        self.lbl_image.grid(row=0, column=1, padx=15, pady=15, sticky="nsew")
 
         self.info_panel = ctk.CTkFrame(self.view_frame, fg_color="#262626")
-        self.info_panel.grid(row=0, column=1, padx=15, pady=15, sticky="nsew")
+        self.info_panel.grid(row=0, column=2, padx=(0, 15), pady=15, sticky="nsew")
 
         info_header = ctk.CTkLabel(self.info_panel, text="Detalles de la Captura", font=("Arial", 16, "bold"))
         info_header.pack(pady=10, padx=10, anchor="w")
@@ -257,22 +283,22 @@ class FireWatchCentralApp(ctk.CTk):
         for widget in self.scroll_history.winfo_children():
             widget.destroy()
 
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT id_alerta, tipo, fecha_hora, camara_id, direccion, estado, operador_resolucion, motivo_descarte
-            FROM registro_alertas ORDER BY fecha_resolucion DESC
-        """)
-        records = cursor.fetchall()
-        conn.close()
+        try:
+            records = api_client.alertas_resueltas(self.token)
+        except api_client.ApiError as e:
+            lbl_err = ctk.CTkLabel(self.scroll_history, text=f"No se pudo cargar el historial: {e}", font=("Arial", 14))
+            lbl_err.pack(pady=30)
+            return
 
         if not records:
             lbl_empty = ctk.CTkLabel(self.scroll_history, text="No hay alertas registradas en el historial.", font=("Arial", 14))
             lbl_empty.pack(pady=30)
             return
 
-        for row in records:
-            id_alerta, tipo, fecha, cam_id, direccion, estado, op_res, motivo = row
+        for a in records:
+            id_alerta, tipo, fecha = a["id_alerta"], a["tipo"], a["fecha_hora"]
+            cam_id, direccion = a["camara_id"], a.get("ubicacion") or "sin dirección"
+            estado, op_res, motivo = a["estado"], a.get("operador_resolucion"), a.get("motivo_descarte")
 
             card_color = "#1E3A1E" if estado == "CONFIRMADA" else "#3A1E1E"
             status_text = "🟢 CONFIRMADA" if estado == "CONFIRMADA" else "🔴 FALSO POSITIVO"
@@ -291,66 +317,186 @@ class FireWatchCentralApp(ctk.CTk):
             lbl_item = ctk.CTkLabel(card, text=txt_info, justify="left", font=("Arial", 11))
             lbl_item.pack(anchor="w", padx=12, pady=10)
 
+    def _show_image(self, ctk_img=None, text=""):
+        """Muestra una imagen o un texto en el visor.
+
+        Nunca se usa image=None: en customtkinter deja al widget apuntando a una
+        imagen de Tk ya liberada y la siguiente alerta falla con
+        'image "pyimageN" doesn't exist'. En su lugar se pone una imagen
+        transparente y se guarda una referencia a la imagen activa."""
+        if ctk_img is None:
+            if getattr(self, "_blank_img", None) is None:
+                self._blank_img = ctk.CTkImage(light_image=Image.new("RGBA", (1, 1), (0, 0, 0, 0)),
+                                               dark_image=Image.new("RGBA", (1, 1), (0, 0, 0, 0)),
+                                               size=(1, 1))
+            ctk_img = self._blank_img
+        self._current_img = ctk_img  # evita que se libere mientras se muestra
+        self.lbl_image.configure(image=ctk_img, text=text)
+
+    def _poll_api(self):
+        """Hilo: pide las alertas pendientes al servidor sin congelar la ventana."""
+        try:
+            self.incoming.put(api_client.alertas(self.token, estado="PENDIENTE", limit=200))
+            self.api_error = None
+            self.last_poll = time.strftime("%H:%M:%S")
+        except api_client.ApiError as e:
+            self.api_error = str(e)
+        except Exception as e:   # cualquier otro fallo también debe verse, no morir en silencio
+            self.api_error = f"error inesperado: {e}"
+        finally:
+            self.polling = False
+
+    SEVERIDAD = {"CRITICAL": 0, "FIRE": 1, "SMOKE": 2}
+    COLOR_TIPO = {"CRITICAL": "#8E0000", "FIRE": "#B34700", "SMOKE": "#6B5B00"}
+    # Nombre corto del selector -> tipo real de la alerta (las fotos manuales de la cámara llegan como NO_DETECTION)
+    FILTRO_A_TIPO = {"FOTO": "NO_DETECTION"}
+    MAX_LISTA = 60
+
+    def _sorted_pending(self):
+        """Primero las NUEVAS (que el operador aún no abrió); luego las más recientes.
+        La gravedad se distingue por el color y se puede filtrar por tipo."""
+        return sorted(self.pending.values(),
+                      key=lambda a: (0 if a.get("id_alerta") in self.new_ids else 1,
+                                     -(a.get("timestamp") or 0)))
+
+    def _visible_pending(self):
+        """Lista ordenada y filtrada por el tipo elegido en el selector."""
+        f = getattr(self, "filtro_tipo", "Todas")
+        orden = self._sorted_pending()
+        if f == "Todas":
+            return orden
+        tipo = self.FILTRO_A_TIPO.get(f, f)
+        return [a for a in orden if a.get("tipo") == tipo]
+
+    def _on_filter(self, valor):
+        self.filtro_tipo = valor
+        self._list_sig = None
+        self._refresh_list()
+
+    def _apply_pending(self, items):
+        """Sincroniza la lista local con lo que dice el servidor."""
+        items = [a for a in items if a.get("id_alerta") and a["id_alerta"] not in self.resolved_ids]
+        fresh = [a["id_alerta"] for a in items if a["id_alerta"] not in self.seen_ids]
+        self.pending = {a["id_alerta"]: a for a in items}
+        self.seen_ids.update(self.pending)
+        if fresh and not self.first_load:
+            self.new_ids.update(fresh)
+            try:
+                self.bell()
+            except Exception:
+                pass
+        self.first_load = False
+        self.new_ids &= set(self.pending)
+
+        # si la alerta abierta ya no está pendiente (la resolvió otro puesto), se suelta
+        if self.active_alert and self.active_alert["id_alerta"] not in self.pending:
+            self.active_alert = None
+            self._reset_view()
+        # sin alerta abierta: se abre la más grave
+        if not self.active_alert and self.pending:
+            self.display_alert(self._sorted_pending()[0])
+        self._refresh_list()
+
+    def _refresh_list(self):
+        """Redibuja la lista solo si cambió algo (evita parpadeo y trabajo inútil cada 3 s)."""
+        orden = self._visible_pending()
+        active_id = self.active_alert["id_alerta"] if self.active_alert else None
+        sig = (tuple(a["id_alerta"] for a in orden[:self.MAX_LISTA]), active_id, tuple(sorted(self.new_ids)),
+               len(orden), len(self.pending), self.filtro_tipo)
+        if sig == self._list_sig:
+            return
+        self._list_sig = sig
+
+        for w in self.scroll_pending.winfo_children():
+            w.destroy()
+        total = len(self.pending)
+        self.lbl_list_count.configure(
+            text=f"{total} en total" if len(orden) == total else f"{len(orden)} de {total} ({self.filtro_tipo})")
+        for a in orden[:self.MAX_LISTA]:
+            tipo = a.get("tipo", "?")
+            cam = (a.get("camara_nombre") or a.get("camara_id") or "?")[:18]
+            hora = (a.get("fecha_hora") or "")[5:16]
+            marca = "● NUEVA  " if a["id_alerta"] in self.new_ids else ""
+            activa = a["id_alerta"] == active_id
+            ctk.CTkButton(
+                self.scroll_pending, text=f"{marca}{tipo} · {cam}\n{hora}", anchor="w", height=44,
+                fg_color=self.COLOR_TIPO.get(tipo, "#444444"), hover_color="#555555",
+                border_width=3 if activa else 0, border_color="#FFFFFF",
+                command=lambda al=a: self.select_alert(al)
+            ).pack(fill="x", pady=2, padx=2)
+        if len(orden) > self.MAX_LISTA:
+            ctk.CTkLabel(self.scroll_pending, text=f"+{len(orden) - self.MAX_LISTA} más (resuelve las de arriba)",
+                         font=("Arial", 10), text_color="gray").pack(pady=6)
+
+    def select_alert(self, alerta):
+        """El operador elige una alerta de la lista."""
+        if alerta["id_alerta"] in self.pending:
+            self.display_alert(alerta)
+            self._refresh_list()
+
     def check_pending_alerts(self):
-        if os.path.exists(self.alert_folder):
-            files = [f for f in os.listdir(self.alert_folder) if f.endswith(".json")]
-            
-            for file_name in files:
-                json_path = os.path.join(self.alert_folder, file_name)
-                try:
-                    with open(json_path, "r", encoding="utf-8") as f:
-                        alert_data = json.load(f)
-                        alert_id = alert_data.get("id_alerta")
+        if not self.polling:
+            self.polling = True
+            threading.Thread(target=self._poll_api, daemon=True).start()
 
-                        if alert_id and alert_id not in self.processed_ids:
-                            self.alert_queue.put(alert_data)
-                            self.processed_ids.add(alert_id)
-                except Exception as e:
-                    print(f"[ERROR] No se pudo leer {json_path}: {e}")
+        latest = None
+        while not self.incoming.empty():
+            latest = self.incoming.get()
+        if latest is not None:
+            self._apply_pending(latest)
 
-        in_queue = self.alert_queue.qsize()
-        if self.active_alert:
-            in_queue += 1
-
-        if in_queue > 0:
-            self.lbl_queue_count.configure(text=f"⚠️ {in_queue} alerta(s) pendiente(s)", text_color="#FF4D4D")
+        n = len(self.pending)
+        self.lbl_scan_status.configure(
+            text=f"🟢 Consultado {self.last_poll}\n{n} pendiente(s) · {len(self.new_ids)} nueva(s)" if self.last_poll
+            else "⏳ Consultando servidor...", text_color="#4CAF50")
+        if self.api_error:
+            self.lbl_queue_count.configure(text=f"🔌 {self.api_error}", text_color="#FFB020")
+        elif n > 0:
+            self.lbl_queue_count.configure(text=f"⚠️ {n} alerta(s) pendiente(s)", text_color="#FF4D4D")
         else:
             self.lbl_queue_count.configure(text="En cola: 0 alertas", text_color="gray")
 
-        if not self.active_alert and not self.alert_queue.empty():
-            next_alert = self.alert_queue.get()
-            self.display_alert(next_alert)
+        self.after(3000, self.check_pending_alerts)
 
-        self.after(2000, self.check_pending_alerts)
+    def _reset_view(self):
+        self.lbl_alert_title.configure(text="✅ Sistema Normal — Sin Alertas Pendientes", text_color="#4CAF50")
+        self._show_image(None, "Esperando transmisiones...")
+        self.lbl_info_text.configure(text="No hay datos de alerta activos.")
+        self.btn_confirm.configure(state="disabled")
+        self.btn_reject.configure(state="disabled")
 
     def display_alert(self, alert_data):
         self.active_alert = alert_data
+        self.new_ids.discard(alert_data.get("id_alerta"))
         tipo = alert_data.get("tipo", "DESCONOCIDO")
-        remaining = self.alert_queue.qsize()
-        
-        queue_text = f" ({remaining} más en espera)" if remaining > 0 else ""
+        remaining = max(len(self.pending) - 1, 0)
+
+        queue_text = f" ({remaining} más pendientes)" if remaining > 0 else ""
         self.lbl_alert_title.configure(text=f"🚨 ALERTA DETECTADA: {tipo}{queue_text}", text_color="#FF3333")
 
-        img_filename = alert_data.get("imagen_asociada", "")
-        img_path = os.path.join(self.alert_folder, img_filename)
+        if tipo == "NO_DETECTION":
+            self.lbl_alert_title.configure(
+                text=f"⚠️ SIN DETECCIÓN — verificar la foto{queue_text}", text_color="#FFB020")
 
-        if os.path.exists(img_path):
-            pil_img = Image.open(img_path)
-            ctk_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(500, 380))
-            self.lbl_image.configure(image=ctk_img, text="")
-        else:
-            self.lbl_image.configure(image=None, text="Imagen no encontrada")
+        try:
+            pil_img = Image.open(io.BytesIO(api_client.imagen(self.token, alert_data["id_alerta"])))
+            ctk_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(440, 340))
+            self._show_image(ctk_img)
+        except Exception:
+            self._show_image(None, "Imagen no disponible")
 
-        cam = alert_data.get("camara", {})
-        ubic = alert_data.get("ubicacion", {})
+        gps = alert_data.get("gps")
+        coords = f"Lat: {gps[0]} | Lon: {gps[1]}" if gps else "sin coordenadas"
+        conf = alert_data.get("confianza")
 
         info_str = (
             f"• ID Alerta: {alert_data.get('id_alerta')}\n\n"
             f"• Fecha/Hora: {alert_data.get('fecha_hora')}\n\n"
-            f"• Cámara: {cam.get('id')} ({cam.get('orientacion')}, Azimut {cam.get('azimut')}°)\n\n"
-            f"• Dirección:\n  {ubic.get('direccion')}\n\n"
-            f"• Coordenadas GPS:\n  Lat: {ubic.get('latitud')} | Lon: {ubic.get('longitud')}\n\n"
-            f"• Fuente Ubicación: {ubic.get('fuente')}"
+            f"• Cámara: {alert_data.get('camara_nombre') or alert_data.get('camara_id')}"
+            f" ({alert_data.get('camara_id')})\n\n"
+            f"• Ubicación:\n  {alert_data.get('ubicacion') or 'sin dirección'}\n\n"
+            f"• Coordenadas GPS:\n  {coords}\n\n"
+            f"• Confianza del modelo: {f'{conf:.0%}' if conf is not None else 'n/d'}"
         )
         self.lbl_info_text.configure(text=info_str)
 
@@ -358,78 +504,45 @@ class FireWatchCentralApp(ctk.CTk):
         self.btn_reject.configure(state="normal")
 
     def save_alert_to_db(self, estado, motivo_descarte=""):
+        """Envía la resolución al servidor. Devuelve True si se guardó."""
         if not self.active_alert:
-            return
-
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-
-        cam = self.active_alert.get("camara", {})
-        ubic = self.active_alert.get("ubicacion", {})
-
-        cursor.execute("""
-            INSERT OR REPLACE INTO registro_alertas (
-                id_alerta, tipo, fecha_hora, camara_id, orientacion, azimut,
-                direccion, latitud, longitud, imagen_path, estado,
-                operador_resolucion, fecha_resolucion, motivo_descarte
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            self.active_alert.get("id_alerta"),
-            self.active_alert.get("tipo"),
-            self.active_alert.get("fecha_hora"),
-            cam.get("id"),
-            cam.get("orientacion"),
-            cam.get("azimut"),
-            ubic.get("direccion"),
-            ubic.get("latitud"),
-            ubic.get("longitud"),
-            self.active_alert.get("imagen_asociada"),
-            estado,
-            self.current_user["username"],
-            time.strftime("%Y-%m-%d %H:%M:%S"),
-            motivo_descarte
-        ))
-
-        conn.commit()
-        conn.close()
+            return False
+        try:
+            api_client.resolver(self.token, self.active_alert["id_alerta"], estado, motivo_descarte or None)
+            return True
+        except api_client.ApiError as e:
+            messagebox.showerror("FireWatch", f"No se pudo guardar la resolución:\n{e}\n\nLa alerta sigue pendiente.")
+            return False
 
     def clear_active_alert_files(self):
+        """Ya resuelta la alerta abierta: se quita de la lista y se abre la siguiente más grave."""
         if not self.active_alert:
             return
-
-        id_alerta = self.active_alert.get("id_alerta")
-        json_path = os.path.join(self.alert_folder, f"{id_alerta}.json")
-        img_path = os.path.join(self.alert_folder, f"{id_alerta}.jpg")
-
-        if os.path.exists(json_path):
-            os.remove(json_path)
-        if os.path.exists(img_path):
-            os.remove(img_path)
-
+        aid = self.active_alert["id_alerta"]
+        self.resolved_ids.add(aid)
+        self.pending.pop(aid, None)
+        self.new_ids.discard(aid)
         self.active_alert = None
 
-        if not self.alert_queue.empty():
-            next_alert = self.alert_queue.get()
-            self.display_alert(next_alert)
+        siguiente = self._sorted_pending()
+        if siguiente:
+            self.display_alert(siguiente[0])
         else:
-            self.lbl_alert_title.configure(text="✅ Sistema Normal — Sin Alertas Pendientes", text_color="#4CAF50")
-            self.lbl_image.configure(image=None, text="Esperando transmisiones...")
-            self.lbl_info_text.configure(text="No hay datos de alerta activos.")
-            self.btn_confirm.configure(state="disabled")
-            self.btn_reject.configure(state="disabled")
+            self._reset_view()
+        self._refresh_list()
 
     def confirm_alert(self):
-        self.save_alert_to_db(estado="CONFIRMADA")
-        print(f"[ALERTA CONFIRMADA] {self.active_alert.get('id_alerta')} procesada por {self.current_user['username']}")
-        self.clear_active_alert_files()
+        if self.save_alert_to_db(estado="CONFIRMADA"):
+            print(f"[ALERTA CONFIRMADA] {self.active_alert.get('id_alerta')} procesada por {self.current_user['username']}")
+            self.clear_active_alert_files()
 
     def reject_alert_dialog(self):
         RejectModal(self, on_confirm_callback=self.process_rejection)
 
     def process_rejection(self, motivo):
-        self.save_alert_to_db(estado="FALSO_POSITIVO", motivo_descarte=motivo)
-        print(f"[FALSO POSITIVO] {self.active_alert.get('id_alerta')} descartada. Motivo: {motivo}")
-        self.clear_active_alert_files()
+        if self.save_alert_to_db(estado="FALSO_POSITIVO", motivo_descarte=motivo):
+            print(f"[FALSO POSITIVO] {self.active_alert.get('id_alerta')} descartada. Motivo: {motivo}")
+            self.clear_active_alert_files()
 
     def logout(self):
         self.destroy()
@@ -437,8 +550,6 @@ class FireWatchCentralApp(ctk.CTk):
 
 
 def run_app():
-    init_db()
-
     def start_main_dashboard(user_data):
         app = FireWatchCentralApp(current_user=user_data, on_logout_callback=run_app)
         app.mainloop()

@@ -63,11 +63,18 @@ class WindParticleLayer {
 
   _randomPoint() {
     const b = this.map.getBounds();
-    return {
-      lon: b.getWest() + Math.random() * (b.getEast() - b.getWest()),
-      lat: b.getSouth() + Math.random() * (b.getNorth() - b.getSouth()),
-      age: Math.random() * 80,
-    };
+    let pt = null;
+    // Con la grilla nacional, solo nacen partículas donde hay dato y dentro de Chile (hasta 8 intentos).
+    for (let i = 0; i < 8; i++) {
+      pt = {
+        lon: b.getWest() + Math.random() * (b.getEast() - b.getWest()),
+        lat: b.getSouth() + Math.random() * (b.getNorth() - b.getSouth()),
+        age: Math.random() * 80,
+      };
+      const inChile = typeof chileMaskAlpha !== 'function' || chileMaskAlpha(pt.lat, pt.lon) > 0.3;
+      if (inChile && this.grid && this.grid.loaded && this.grid.sample(pt.lat, pt.lon)) break;
+    }
+    return pt;
   }
 
   _seedParticles() {
@@ -106,13 +113,15 @@ class WindParticleLayer {
     ctx.globalCompositeOperation = 'source-over';
 
     const bounds = this.map.getBounds();
+    // A escala de país el paso en grados sería invisible: crece al alejar el zoom.
+    const zoomK = clampWL(Math.pow(2, 11 - this.map.getZoom()), 1, 80);
 
     for (const p of this.particles) {
       const w = this.grid.sample(p.lat, p.lon);
       if (!w) { Object.assign(p, this._randomPoint()); continue; }
 
       const bearing = ((w.dirDeg + 180) % 360) * Math.PI / 180;
-      const step = 0.00022 * (0.35 + w.speed / 35);
+      const step = 0.00022 * zoomK * (0.35 + w.speed / 35);
       const dLat = Math.cos(bearing) * step;
       const dLon = Math.sin(bearing) * step / Math.max(0.15, Math.cos(p.lat * Math.PI / 180));
 
@@ -129,7 +138,7 @@ class WindParticleLayer {
       ctx.lineTo(nextScreen.x, nextScreen.y);
       ctx.stroke();
 
-      if (p.age > 110 || !bounds.contains([p.lon, p.lat])) {
+      if (p.age > 110 || !bounds.contains([p.lon, p.lat]) || (typeof chileMaskAlpha === 'function' && chileMaskAlpha(p.lat, p.lon) < 0.05)) {
         Object.assign(p, this._randomPoint());
       }
     }

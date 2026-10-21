@@ -55,6 +55,8 @@ async function buildInspectorHTML(lat, lon, weatherGrid, scenarioLabel) {
   }
 
   // Vegetación / combustible
+  // Fuera de Santiago la grilla de la zona se baja bajo demanda (zones.js).
+  if (!fuelGridFor(lat, lon) && typeof zonesEnsureFuel === 'function') { try { await zonesEnsureFuel(lat, lon, 0.3); } catch (_) { /* sin datos */ } }
   const fg = fuelGridFor(lat, lon);
   const cell = fg ? fg.cell(lat, lon) : null;
   if (cell) {
@@ -83,6 +85,7 @@ async function buildInspectorHTML(lat, lon, weatherGrid, scenarioLabel) {
     rows.push('<div class="fw-dim">Sin clima para este punto (fuera de la grilla de datos).</div>');
   }
   rows.push(routeButtonHTML(lat.toFixed(5), lon.toFixed(5)));
+  rows.push(spreadButtonHTML(lat.toFixed(5), lon.toFixed(5)));
   return `<div class="fw-zone">${rows.join('')}</div>`;
 }
 
@@ -96,7 +99,8 @@ function initInspector(map, ctx) {
     if (!ctx.enabled()) return;
     // Si el clic cae sobre un elemento con su propio popup (grifo, foco, cámara…), no se duplica.
     const own = ['fire-pixels-point', 'hydrants-point', 'fire-stations-point', 'water-sources-point',
-      'water-rivers-line', 'chile-weather-point', 'camera-sensor-point'].filter((id) => map.getLayer(id));
+      'water-rivers-line', 'chile-weather-point', 'camera-sensor-point',
+      'zone-hydrants-point', 'zone-fire-stations-point', 'zone-water-sources-point', 'zone-water-rivers-line'].filter((id) => map.getLayer(id));
     if (own.length && map.queryRenderedFeatures(e.point, { layers: own }).length) return;
 
     const { lat, lng } = e.lngLat;

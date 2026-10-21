@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from database import init_db, verify_user
+import api_client
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
@@ -84,19 +84,20 @@ class LoginWindow(ctk.CTk):
             self.lbl_error.configure(text="Por favor ingresa usuario y contraseña.")
             return
 
-        user_data = verify_user(username, password)
+        self.lbl_error.configure(text="Conectando...")
+        self.update_idletasks()
+        try:
+            user_data = api_client.login(username, password)
+        except api_client.ApiError as e:
+            self.lbl_error.configure(text=str(e))
+            return
 
-        if user_data:
-            self.lbl_error.configure(text="")
-            self.destroy()  # Cierra la ventana de login
-            self.on_login_success(user_data)  # Pasa la información del usuario a la app principal
-        else:
-            self.lbl_error.configure(text="Usuario o contraseña incorrectos.")
+        self.lbl_error.configure(text="")
+        self.destroy()  # Cierra la ventana de login
+        self.on_login_success(user_data)  # Pasa la información del usuario (incluye el token) a la app principal
 
 
 if __name__ == "__main__":
-    init_db()  # Asegurar que la base de datos existe
-
     def demo_success(user):
         print(f"Sesión iniciada con éxito por: {user['nombre_completo']} ({user['rol']})")
 

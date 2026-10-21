@@ -78,7 +78,7 @@ function stationsToGeoJSON() {
 }
 
 async function addChileWeatherLayer(map, area) {
-  const bounds = boundsFromCenterKm(area.center, area.radiusKm);
+  const bounds = area.bbox ? [[area.bbox[0], area.bbox[1]], [area.bbox[2], area.bbox[3]]] : boundsFromCenterKm(area.center, area.radiusKm);
   const [west, south] = bounds[0];
   const [east, north] = bounds[1];
   const inBounds = (s) => s.lat >= south && s.lat <= north && s.lon >= west && s.lon <= east;

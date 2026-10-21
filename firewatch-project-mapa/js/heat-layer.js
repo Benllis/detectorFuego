@@ -160,6 +160,12 @@ class TemperatureHeatLayer {
     return { min, max };
   }
 
+  /** Latitud de la fila `py` de la imagen (lineal). La capa nacional la sobrescribe con la proyección Mercator. */
+  _rowLat(py, size, first, last) { return last.lat - (py / (size - 1)) * (last.lat - first.lat); }
+
+  /** Factor 0-1 extra de transparencia por punto (la capa nacional enmascara lo que no es Chile). */
+  _extraAlpha(lat, lon) { return 1; }
+
   _renderCanvas() {
     const size = this.resolution;
     const ctx = this.ctx;
@@ -169,7 +175,7 @@ class TemperatureHeatLayer {
     this.scale = this._computeScale();
 
     for (let py = 0; py < size; py++) {
-      const lat = last.lat - (py / (size - 1)) * (last.lat - first.lat);
+      const lat = this._rowLat(py, size, first, last);
       for (let px = 0; px < size; px++) {
         const idx = (py * size + px) * 4;
         const lon = first.lon + (px / (size - 1)) * (last.lon - first.lon);
@@ -210,7 +216,7 @@ class TemperatureHeatLayer {
           const ey = Math.min(py, size - 1 - py) / (size - 1);
           alpha = Math.round(alpha * smooth(0, this.feather, Math.min(ex, ey)));
         }
-        imgData.data[idx + 3] = alpha;
+        imgData.data[idx + 3] = Math.round(alpha * this._extraAlpha(lat, lon));
       }
     }
     ctx.putImageData(imgData, 0, 0);

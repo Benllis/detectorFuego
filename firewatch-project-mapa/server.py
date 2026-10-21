@@ -12,6 +12,9 @@ y, además, expone unos pocos endpoints /api/* que:
      recargar la página o abrir varias pestañas,
   3. normalizan los datos de la DMC (nombres con codificación rota, nudos
      a km/h, último dato por estación).
+  4. dejan pasar las consultas a Overpass (OpenStreetMap) por POST /api/overpass:
+     el navegador no puede leerlas directo (CORS); aquí se reintentan, se cae
+     a un mirror y se guardan 24 h.
 
 Solo usa la librería estándar de Python (3.8+). No hay que instalar nada.
 
@@ -26,6 +29,7 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -39,7 +43,15 @@ CACHE_DIR = os.path.join(ROOT, "cache")
 DMC_BASE = "https://climatologia.meteochile.gob.cl/application/servicios"
 FIRMS_BASE = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+OPEN_METEO_ELEVATION_URL = "https://api.open-meteo.com/v1/elevation"
 OPEN_METEO_ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
+# Overpass (OpenStreetMap): el navegador NO lo consulta directo (los servidores públicos no siempre mandan las
+# cabeceras CORS y el navegador bloquea la respuesta); pasa por POST /api/overpass de este servidor.
+OVERPASS_URLS = (
+    "https://overpass-api.de/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",   # respaldo (verificado el 28-09-2026)
+)
+MAX_OVERPASS_BODY = 64 * 1024   # consultas por polígono nacional: unos KB; esto corta abusos
 OSRM_URL = "https://router.project-osrm.org/route/v1/driving"      # servidor de demo: uso liviano
 TOMTOM_ROUTE_URL = "https://api.tomtom.com/routing/1/calculateRoute"
 TOMTOM_FLOW_URL = "https://api.tomtom.com/traffic/map/4/tile/flow/relative"   # tiles raster (.png)
@@ -60,6 +72,8 @@ TTL = {
     "open_meteo": 30 * 60,         # el modelo se recalcula cada hora
     "om_archive_recent": 3 * 3600, # últimos días: Open-Meteo aún puede ajustarlos
     "om_archive_old": 7 * 24 * 3600,  # histórico: no cambia
+    "elevation": 365 * 24 * 3600,  # la altura del terreno no cambia
+    "overpass": 24 * 3600,         # agua, grifos y cuarteles casi no cambian (igual que el caché del navegador)
     "route_osrm": 3600,            # la red vial cambia lento
     "route_tomtom": 2 * 60,        # incluye tráfico en vivo
     "traffic_tile": 5 * 60,        # el flujo se actualiza cada ~minuto; 5 min cuida la cuota gratis
@@ -417,6 +431,70 @@ def open_meteo_archive(query):
     return cached_fetch(ck, ttl, producer)
 
 
+def elevation(params):
+    """Altura (DEM de Open-Meteo) de hasta 100 puntos. Se guarda un año: el terreno no cambia, así que repetir
+    una simulación en la misma zona no vuelve a gastar cuota ni espera la red."""
+    lats = params.get("latitude", [""])[0].split(",")
+    lons = params.get("longitude", [""])[0].split(",")
+    if not 1 <= len(lats) <= 100 or len(lats) != len(lons):
+        raise ValueError("latitude y longitude deben tener entre 1 y 100 valores, en igual cantidad")
+    la = [to_float(x) for x in lats]
+    lo = [to_float(x) for x in lons]
+    if any(v is None or not -90 <= v <= 90 for v in la) or any(v is None or not -180 <= v <= 180 for v in lo):
+        raise ValueError("coordenadas fuera de rango")
+    qs = urllib.parse.urlencode({"latitude": ",".join(f"{v:.5f}" for v in la), "longitude": ",".join(f"{v:.5f}" for v in lo)}, safe=",")
+    return cached_fetch("elev|" + qs, TTL["elevation"], lambda: http_get(f"{OPEN_METEO_ELEVATION_URL}?{qs}").decode("utf-8"))
+
+
+# ---------------------------------------------------------------- Overpass (proxy)
+_ovp_slots = threading.BoundedSemaphore(2)  # como mucho 2 consultas a la vez: Overpass público limita por IP
+OVP_QUERY_RE = re.compile(r"^\[out:json\](?:\[timeout:(\d{1,3})\])?")
+
+
+def _overpass_post(url, query, timeout):
+    data = urllib.parse.urlencode({"data": query}).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers={
+        "User-Agent": "FireWatch-Mapa/1.0 (proyecto academico)",
+        "Content-Type": "application/x-www-form-urlencoded"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def overpass(query):
+    """Ejecuta una consulta Overpass QL (solo salida JSON) con reintento y mirror; caché de 24 h.
+    Devuelve (dict, edad_seg, stale). El servidor solo habla con los dos hosts fijos de OVERPASS_URLS: el
+    cliente aporta únicamente el texto de la consulta, nunca una URL."""
+    q = (query or "").strip()
+    m = OVP_QUERY_RE.match(q)
+    if not m:
+        raise ValueError("la consulta debe empezar con [out:json]")
+    if len(q) > MAX_OVERPASS_BODY:
+        raise ValueError("consulta demasiado larga")
+    timeout = min(135, int(m.group(1)) + 15) if m.group(1) else 40
+
+    def producer():
+        attempts = ((OVERPASS_URLS[0], 0), (OVERPASS_URLS[0], 2.5), (OVERPASS_URLS[1], 1.0))
+        last = None
+        with _ovp_slots:
+            for url, delay in attempts:
+                if delay:
+                    time.sleep(delay)
+                try:
+                    data = _overpass_post(url, q, timeout)
+                except Exception as err:  # noqa: BLE001
+                    last = err
+                    continue
+                # a veces responde 200 con un «remark» de timeout/memoria y datos incompletos: no se guarda
+                remark = data.get("remark", "") if isinstance(data, dict) else ""
+                if re.search(r"timed out|out of memory|runtime error", remark, re.I):
+                    last = RuntimeError(f"Overpass: {remark}")
+                    continue
+                return data
+        raise last or RuntimeError("Overpass no respondió")
+
+    return cached_fetch("ovp|" + hashlib.sha256(q.encode("utf-8")).hexdigest(), TTL["overpass"], producer)
+
+
 # ---------------------------------------------------------------- rutas y tráfico
 def _parse_coords(raw):
     """'lon,lat;lon,lat[;lon,lat…]' → [(lon, lat), …] validado (2 a 4 puntos)."""
@@ -525,6 +603,23 @@ def traffic_vtile(z, x, y):
     return body
 
 
+# ---------------------------------------------------------------- SIG Bomberos (copia local)
+BOMBEROS_DIR = os.path.join(ROOT, "data", "bomberos")
+BOMBEROS_FILES = {"cuarteles": "stations.json", "grifos": "hydrants.json", "meta": "meta.json"}
+
+
+def bomberos_file(kind):
+    """Contenido (bytes) de la copia local del SIG de Bomberos, o None si aún no se ha descargado."""
+    name = BOMBEROS_FILES.get(kind)
+    if not name:
+        raise ValueError("recurso inválido")
+    try:
+        with open(os.path.join(BOMBEROS_DIR, name), "rb") as fh:
+            return fh.read()
+    except OSError:
+        return None
+
+
 # ---------------------------------------------------------------- HTTP
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *a, **kw):
@@ -563,6 +658,10 @@ class Handler(SimpleHTTPRequestHandler):
         path = urllib.parse.unquote(url.path)
         t0 = time.time()
         variant = None
+        if path == "/api/clientlog":
+            return self._clientlog()
+        if path == "/api/overpass":
+            return self._overpass()
         try:
             if path != "/api/store/fuelgrid":
                 return self._json(404, {"error": "endpoint desconocido"})
@@ -589,6 +688,51 @@ class Handler(SimpleHTTPRequestHandler):
         except Exception as err:  # noqa: BLE001
             storage.log_event("combustible", "error", variant=variant, phase="guardado", origin="browser", err=err,
                               ms=(time.time() - t0) * 1000)
+            return self._json(500, {"error": f"{type(err).__name__}: {err}"})
+
+    def _overpass(self):
+        """POST /api/overpass con {"query": "<Overpass QL>"} → el JSON de Overpass (con caché de 24 h)."""
+        t0 = time.time()
+        try:
+            origin = self.headers.get("Origin")
+            if origin and urllib.parse.urlparse(origin).netloc != self.headers.get("Host"):
+                return self._json(403, {"error": "origen no permitido"})
+            length = int(self.headers.get("Content-Length") or 0)
+            if not 0 < length <= MAX_OVERPASS_BODY + 1024:
+                return self._json(413, {"error": "cuerpo vacío o demasiado grande"})
+            body = json.loads(self.rfile.read(length).decode("utf-8"))
+            query = body.get("query") if isinstance(body, dict) else None
+            if not isinstance(query, str):
+                raise ValueError('el cuerpo debe ser {"query": "..."}')
+            value, age, stale = overpass(query)
+            return self._send(200, json.dumps(value, ensure_ascii=False), "application/json; charset=utf-8",
+                              {"X-Cache-Age": str(int(age)), "X-Stale": str(stale).lower()})
+        except (ValueError, UnicodeDecodeError) as err:
+            return self._json(400, {"error": f"{type(err).__name__}: {err}"})
+        except Exception as err:  # noqa: BLE001
+            storage.log_event("overpass", "error", phase="proxy", origin="server", err=err, ms=(time.time() - t0) * 1000)
+            return self._json(502, {"error": f"{type(err).__name__}: {err}", "kind": "upstream"})
+
+    def _clientlog(self):
+        """Errores y avisos del navegador (mapa) → data/ingest.log y la base, con origen «browser»."""
+        try:
+            origin = self.headers.get("Origin")
+            if origin and urllib.parse.urlparse(origin).netloc != self.headers.get("Host"):
+                return self._json(403, {"error": "origen no permitido"})
+            length = int(self.headers.get("Content-Length") or 0)
+            if not 0 < length <= 8192:
+                return self._json(413, {"error": "cuerpo vacío o demasiado grande"})
+            d = json.loads(self.rfile.read(length).decode("utf-8"))
+            clean = lambda v, n: re.sub(r"[\r\n\t]+", " ", str(v or ""))[:n]  # noqa: E731
+            src = re.sub(r"[^\w:.-]", "", clean(d.get("source"), 40)) or "desconocido"
+            storage.log_event("navegador:" + src, "warn" if d.get("level") == "warn" else "error",
+                              variant=clean(d.get("variant"), 60) or None, phase=clean(d.get("phase"), 40) or None,
+                              error_type="navegador", error_msg=clean(d.get("message"), 400),
+                              detail=clean(d.get("detail"), 300) or None, origin="browser")
+            return self._json(200, {"ok": True})
+        except (ValueError, TypeError, AttributeError) as err:
+            return self._json(400, {"error": f"{type(err).__name__}: {err}"})
+        except Exception as err:  # noqa: BLE001
             return self._json(500, {"error": f"{type(err).__name__}: {err}"})
 
     def _api(self, path, query):
@@ -618,6 +762,12 @@ class Handler(SimpleHTTPRequestHandler):
                 if not re.match(r"^-?\d+\.\d{4}(,-?\d+\.\d{4}){3}$", key):
                     raise ValueError("key inválida")
                 return self._json(200, {"exists": storage.has_fuel_area(key)})
+            if path.startswith("/api/bomberos/"):
+                kind = path.rsplit("/", 1)[-1]
+                body = bomberos_file(kind)
+                if body is None:
+                    return self._json(404, {"error": "Sin copia local del SIG de Bomberos. Ejecuta: python tools/ingest_bomberos.py", "kind": "sin_datos"})
+                return self._send(200, body, "application/json; charset=utf-8", {"Cache-Control": "private, max-age=3600"})
             if path == "/api/dmc/estaciones":
                 value, age, stale = dmc_catalog()
                 return self._json(200, value, {"X-Cache-Age": str(int(age)), "X-Stale": str(stale).lower()})
@@ -634,6 +784,10 @@ class Handler(SimpleHTTPRequestHandler):
                                   {"X-Cache-Age": str(int(age)), "X-Stale": str(stale).lower()})
             if path == "/api/openmeteo-archive":
                 value, age, stale = open_meteo_archive(query)
+                return self._send(200, value, "application/json; charset=utf-8",
+                                  {"X-Cache-Age": str(int(age)), "X-Stale": str(stale).lower()})
+            if path == "/api/elevation":
+                value, age, stale = elevation(urllib.parse.parse_qs(query))
                 return self._send(200, value, "application/json; charset=utf-8",
                                   {"X-Cache-Age": str(int(age)), "X-Stale": str(stale).lower()})
             if path == "/api/route":
@@ -669,6 +823,7 @@ def main():
     print(f"  DMC token : {'OK' if secret('DMC_TOKEN') else 'FALTA (solo catálogo de estaciones)'}")
     print(f"  Archivo   : {storage.DB_PATH}")
     print(f"  TomTom key: {'OK' if secret('TOMTOM_KEY') else 'FALTA (sin tráfico en vivo; rutas por OSRM)'}")
+    print(f"  Bomberos  : {'copia local OK' if bomberos_file('meta') else 'sin copia (python tools/ingest_bomberos.py); se usa OpenStreetMap'}")
     print(f"  FIRMS key : {'OK' if secret('FIRMS_MAP_KEY') else 'FALTA (capa de focos desactivada)'}")
     try:
         srv.serve_forever()

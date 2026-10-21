@@ -206,7 +206,7 @@ async function addFuelCoverLayer(map, area) {
       paint: { 'raster-opacity': 0.6, 'raster-fade-duration': 0 },
     }, before);
     const toggle = document.getElementById('toggle-fuel');
-    if (toggle && !toggle.checked) setFuelCoverVisible(map, false);
+    setFuelCoverVisible(map, !toggle || toggle.checked);
     reportSource('fuel', 'ok', `ESA WorldCover 2021 · ${grid.meta.detail} · grilla de celdas de ${FUEL_CELL_M} m`);
     document.dispatchEvent(new CustomEvent('fuelgrid', { detail: grid }));
   } catch (err) {
@@ -223,6 +223,8 @@ async function addFuelCoverLayer(map, area) {
 }
 
 function setFuelCoverVisible(map, visible) {
+  // Con las teselas del servidor (zones.js) la vegetación de Santiago ya sale de ellas: esta imagen sobraría.
+  if (visible && typeof zonesFuelTilesActive === 'function' && zonesFuelTilesActive()) visible = false;
   if (map.getLayer('worldcover-layer')) {
     map.setLayoutProperty('worldcover-layer', 'visibility', visible ? 'visible' : 'none');
   }

@@ -17,7 +17,7 @@
 <div id="map"></div>
 
 <div class="badge"><span class="dot"></span>
-  <span><b>FireWatch · Mapa 3D</b> — mapa real (OpenStreetMap + terreno 3D real), viento, temperatura, cobertura vegetal, fuentes de agua, grifos, estaciones de bomberos y focos de calor satelitales de Santiago. Datos reales, sin datos ficticios.</span>
+  <span><b>FireWatch · Mapa 3D</b> — mapa real (OpenStreetMap + terreno 3D real), viento, temperatura, cobertura vegetal, fuentes de agua, grifos, estaciones de bomberos y focos de calor satelitales de todo Chile (el detalle local carga al acercar el mapa). Datos reales, sin datos ficticios.</span>
 </div>
 
 <div class="panel" id="controls">
@@ -38,7 +38,8 @@
   <div class="toggle-row"><span>Fuentes de agua</span><input type="checkbox" id="toggle-water" checked></div>
   <div class="toggle-row"><span>Grifos (hidrantes)</span><input type="checkbox" id="toggle-hydrants" checked></div>
   <div class="toggle-row"><span>Estaciones de bomberos</span><input type="checkbox" id="toggle-firestations" checked></div>
-  <div class="toggle-row"><span>Focos de calor (NASA FIRMS + zona local)</span><input type="checkbox" id="toggle-firms" checked></div>
+  <div class="toggle-row"><span>Focos de calor (NASA FIRMS)</span><input type="checkbox" id="toggle-firms" checked></div>
+  <div class="toggle-row"><span>Zonas de calor local (círculo)</span><input type="checkbox" id="toggle-localzones" checked></div>
   <div class="toggle-row"><span>Consultar un punto (clic en el mapa)</span><input type="checkbox" id="toggle-inspect"></div>
   <div class="toggle-row"><span>Tráfico en vivo (TomTom)</span><input type="checkbox" id="toggle-traffic"></div>
   <div class="toggle-row sub"><span>Vías del tráfico</span>
@@ -63,8 +64,8 @@
 
   <div class="legend" style="margin-top:.9rem;">
     <div class="sw-row"><span class="sw" style="background:#3b82f6; border-radius:50%; height:10px;"></span>Fuente de agua real (OSM)</div>
-    <div class="sw-row"><span class="sw" style="background:#a855f7; border-radius:50%; height:10px;"></span>Grifo real (OSM, desde zoom 12)</div>
-    <div class="sw-row"><span class="sw" style="background:#ff6a3d; border-radius:50%; height:10px;"></span>Estación de bomberos (OSM)</div>
+    <div class="sw-row"><span class="sw" style="background:#a855f7; border-radius:50%; height:10px;"></span>Grifo (SIG Bomberos u OSM, desde zoom 12)</div>
+    <div class="sw-row"><span class="sw" style="background:#ff6a3d; border-radius:50%; height:10px;"></span>Estación de bomberos (SIG Bomberos u OSM)</div>
     <div class="sw-row"><span class="sw" style="background:#e5484d; border-radius:50%; height:10px; box-shadow:0 0 4px #e5484d;"></span>Foco de calor satelital (NASA FIRMS)</div>
     <div class="sw-row"><span class="sw" style="background:transparent; border:2px dashed #ff6a3d; border-radius:50%; height:10px;"></span>Zona de calor local (radio 2.5 km, con rótulo)</div>
     <div class="sw-row"><span class="sw" style="background:#2fae6d; border-radius:50%; height:10px;"></span>Estación DMC con datos frescos</div>
@@ -82,12 +83,35 @@
   </div>
 
   <div class="legend" style="margin-top:.9rem;">
+    <div class="sw-row" style="color:var(--paper);"><b>🚨 Alertas de la central</b></div>
+    <div class="note" style="color:var(--paper-dim);">Alertas que las cámaras envían al backend (puerto 8100). Entra con un usuario operador.</div>
+    <div id="alerts-login">
+      <input type="text" id="alerts-url" class="sel" placeholder="http://localhost:8100" autocomplete="off">
+      <input type="text" id="alerts-user" class="sel" placeholder="Usuario" autocomplete="username">
+      <input type="password" id="alerts-pass" class="sel" placeholder="Contraseña" autocomplete="current-password">
+      <button class="btn" id="btn-alerts-login">Conectar con la central</button>
+    </div>
+    <div id="alerts-session" style="display:none;">
+      <div class="note" style="color:var(--paper);">Sesión: <span id="alerts-who"></span></div>
+      <div class="toggle-row"><span>Mostrar alertas en el mapa</span><input type="checkbox" id="toggle-alerts" checked></div>
+      <div class="toggle-row"><span>Incluir falsos positivos</span><input type="checkbox" id="toggle-alerts-closed"></div>
+      <div class="toggle-row"><span>Ir a las alertas nuevas</span><input type="checkbox" id="toggle-alerts-follow" checked></div>
+      <button class="btn" id="btn-alerts-logout">Cerrar sesión</button>
+    </div>
+    <div id="alerts-note" class="note"></div>
+    <div class="sw-row"><span class="sw" style="background:#ff2d2d; border-radius:50%; height:10px;"></span>Alerta pendiente</div>
+    <div class="sw-row"><span class="sw" style="background:#ff8a00; border-radius:50%; height:10px;"></span>Alerta confirmada</div>
+    <div class="sw-row"><span class="sw" style="background:#7d8a9a; border-radius:50%; height:10px;"></span>Falso positivo</div>
+  </div>
+
+  <div class="legend" style="margin-top:.9rem;">
     <div class="sw-row" style="color:var(--paper);"><b>🛰️ Replay: focos + clima del momento</b></div>
     <select id="replay-select" class="sel"></select>
     <input type="date" id="replay-date" class="sel" style="display:none;" min="2018-01-01">
     <div class="btn-row">
       <button class="btn" id="btn-replay">Ver replay</button>
       <button class="btn" id="btn-live">Volver a en vivo</button>
+      <button class="btn" id="btn-nation">Ver todo Chile</button>
     </div>
     <div id="replay-note" class="note"></div>
   </div>
@@ -111,23 +135,31 @@
 <div id="status-bar"><span id="status-text">Iniciando mapa…</span></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.js"></script>
-<script src="js/config.js"></script>
-<script src="js/api.js"></script>
-<script src="js/weather-grid.js"></script>
-<script src="js/map-init.js"></script>
-<script src="js/wind-layer.js"></script>
-<script src="js/fuel-grid.js"></script>
-<script src="js/heat-layer.js"></script>
-<script src="js/fuel-layer.js"></script>
-<script src="js/overpass-utils.js"></script>
-<script src="js/water-layer.js"></script>
-<script src="js/hydrants-layer.js"></script>
-<script src="js/firestations-layer.js"></script>
-<script src="js/nasa-firms-layer.js"></script>
-<script src="js/local-fire-heat.js"></script>
-<script src="js/inspector.js"></script>
-<script src="js/routing.js"></script>
-<script src="js/chile-weather-layer.js"></script>
-<script src="js/main.js"></script>
+<script src="js/config.js?v=20261010c"></script>
+<script src="js/api.js?v=20261010c"></script>
+<script src="js/weather-grid.js?v=20261010c"></script>
+<script src="js/national.js?v=20261010c"></script>
+<script src="js/map-init.js?v=20261010c"></script>
+<script src="js/wind-layer.js?v=20261010c"></script>
+<script src="js/fuel-grid.js?v=20261010c"></script>
+<script src="js/heat-layer.js?v=20261010c"></script>
+<script src="js/national-heat.js?v=20261010c"></script>
+<script src="js/fuel-layer.js?v=20261010c"></script>
+<script src="js/overpass-utils.js?v=20261015c"></script>
+<script src="js/water-layer.js?v=20261010c"></script>
+<script src="js/hydrants-layer.js?v=20261010c"></script>
+<script src="js/firestations-layer.js?v=20261010c"></script>
+<script src="js/nasa-firms-layer.js?v=20261015a"></script>
+<script src="js/local-fire-heat.js?v=20261012d"></script>
+<script src="js/inspector.js?v=20261010c"></script>
+<script src="js/routing.js?v=20261010c"></script>
+<script src="js/alerts-layer.js?v=20261015a"></script>
+<script src="js/spread-model.js?v=20261012e"></script>
+<script src="js/spread-layer.js?v=20261012e"></script>
+<script src="js/m2-layer.js?v=20261015b"></script>
+<script src="js/chile-weather-layer.js?v=20261010c"></script>
+<script src="js/zones.js?v=20261012a"></script>
+<script src="js/bomberos-local.js?v=20261012a"></script>
+<script src="js/main.js?v=20261015a"></script>
 </body>
 </html>

@@ -135,7 +135,7 @@ async function addLocalFireHeatZones(map) {
   const clusters = clusterFirePixels(firePixels, LOCAL_HEAT_CLUSTER_KM)
     .sort((a, b) => frpOf(b) - frpOf(a) || b.count - a.count)   // las zonas más intensas primero
     .slice(0, LOCAL_HEAT_MAX_ZONES);
-  const toggle = document.getElementById('toggle-firms'); // un solo interruptor: focos + zonas
+  const toggle = document.getElementById('toggle-localzones'); // interruptor propio, separado del de los focos
   localZonesVisible = toggle ? toggle.checked : true;
   const before = map.getLayer(LOCAL_ZONE_BEFORE_LAYER) ? LOCAL_ZONE_BEFORE_LAYER : undefined;
 

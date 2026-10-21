@@ -104,7 +104,7 @@ function ensureFireLayers(map) {
         `<br>Confianza: ${conf}` +
         (p.frp ? `<br>Potencia radiativa: ${p.frp} MW` : '') +
         `<br><span style="opacity:.7">Puede ser incendio, quema agrícola u otra fuente de calor intensa.</span>` +
-        `<div class="fw-zone">${routeButtonHTML(e.lngLat.lat, e.lngLat.lng, '🚒 Ruta de bomberos a este foco')}</div>`
+        `<div class="fw-zone">${routeButtonHTML(e.lngLat.lat, e.lngLat.lng, '🚒 Ruta de bomberos a este foco')}${spreadButtonHTML(e.lngLat.lat, e.lngLat.lng)}${typeof m2ButtonHTML === 'function' ? m2ButtonHTML(e.lngLat.lat, e.lngLat.lng) : ''}</div>`
       )
       .addTo(map);
   });
@@ -146,7 +146,7 @@ async function loadFirePixels(map, area, replay) {
       ? [CONFIG.firmsLiveSources, CONFIG.firmsReplaySources]
       : [CONFIG.firmsReplaySources, CONFIG.firmsLiveSources];
   } else {
-    const b = boundsFromCenterKm(area.center, area.radiusKm);
+    const b = area.bbox ? [[area.bbox[0], area.bbox[1]], [area.bbox[2], area.bbox[3]]] : boundsFromCenterKm(area.center, area.radiusKm);
     bbox = [b[0][0], b[0][1], b[1][0], b[1][1]];
     days = CONFIG.firmsLiveDays; date = ''; sourceSets = [CONFIG.firmsLiveSources];
   }
@@ -215,8 +215,7 @@ function setFirePixelsVisible(map, visible) {
   ['fire-pixels-point', 'fire-pixels-glow'].forEach((id) => {
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visible ? 'visible' : 'none');
   });
-  // Un solo interruptor: las zonas de calor local (relleno, contorno y rótulo) van con los focos.
-  if (typeof setLocalFireHeatVisible === 'function') setLocalFireHeatVisible(visible);
+  // Las zonas de calor local (círculo, contorno y rótulo) tienen su propio interruptor: toggle-localzones.
 }
 
 /** Instante del foco más intenso (mayor potencia radiativa). Sin FRP: la mediana de las horas. */

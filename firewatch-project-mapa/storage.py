@@ -358,6 +358,7 @@ ERROR_HINTS = {
     "validacion": "Los datos enviados no pasaron las validaciones (tamaño, rango o formato).",
     "base_bloqueada": "La base de datos está en uso por otro proceso. Reintenta; evita abrir el .db con otro programa mientras se escribe.",
     "disco": "No se pudo escribir en disco o en la base de datos (espacio, permisos o archivo dañado).",
+    "navegador": "Error o aviso que el propio mapa (navegador) reportó: la fuente va después de «navegador:» (overpass, elevacion, zonas, fuente:…); la fase y el servidor, en el detalle del mensaje.",
     "desconocido": "Error no clasificado; mira el mensaje.",
 }
 
